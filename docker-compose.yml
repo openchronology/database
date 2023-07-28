@@ -1,0 +1,14 @@
+services:
+  sql:
+    image: pgmp-postgres
+    build: ./
+    expose:
+      - "5432"
+    restart: always
+    environment:
+      POSTGRES_DB: pgmp-test-db
+      POSTGRES_PASSWORD: asdf
+    volumes:
+      - ./init.sql:/docker-entrypoint-initd.b/init.sql
+    command: sh -c ".venv/bin/pgxn load -d $POSTGRES_DB && postgres"
+
