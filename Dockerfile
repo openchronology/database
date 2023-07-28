@@ -12,5 +12,5 @@ RUN .venv/bin/pgxn install pgmp
 # RUN .venv/bin/pgxn load -d ${POSTGRES_DB} pgmp
 
 EXPOSE 5432
-# CMD ["postgres"]
-ENTRYPOINT []
+CMD ["postgres"]
+# ENTRYPOINT []
