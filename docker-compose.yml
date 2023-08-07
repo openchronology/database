@@ -2,14 +2,26 @@ services:
   sql:
     image: pgmp-postgres
     build: ./
-    # expose:
-    #   - "5432"
-    ports:
-      - 5432:5432
+    expose:
+      - "5432"
+    # ports:
+    # - 5432:5432
     restart: always
     environment:
       POSTGRES_DB: pgmp-test-db
       POSTGRES_PASSWORD: asdf
     volumes:
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+
+  # sql-rest:
+  #   image: postgrest/postgrest:latest
+  #   depends_on:
+  #     - sql
+  #   ports:
+  #     - 3000:3000
+  #   restart: always
+  #   environment:
+  #     PGRST_DB_URI: "postgres://authenticator:asdf@sql:5432/pgmp-postgres"
+  #     PGRST_DB_ANON_ROLE: anonymous
+  #     PGRST_DB_SCHEMAS: api
 

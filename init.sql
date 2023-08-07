@@ -1,13 +1,3 @@
-
-#!/bin/bash
-set -e
-
-.venv/bin/pgxn load -d $POSTGRES_DB pgmp
-
-psql -v ON_ERROR_STOP=1 \
-  --username "$POSTGRES_USER" \
-  --dbname "$POSTGRES_DB" <<-EOSQL
-
 -- Unique times for entries to be plotted
 CREATE TABLE times (
   value mpq PRIMARY KEY
@@ -56,10 +46,10 @@ CREATE TABLE time_points (
 -- Shorthand for inserting a time point
 CREATE PROCEDURE insert_time_point(
     value mpq
-  ) LANGUAGE SQL AS \$\$
+  ) LANGUAGE SQL AS $$
 INSERT INTO times(value) VALUES (value) ON CONFLICT DO NOTHING;
 INSERT INTO time_points(value) VALUES (value);
-\$\$;
+$$;
 
 -- Many-to-many relation of time points to summaries
 CREATE TABLE time_point_summary_relations (
@@ -82,7 +72,7 @@ CREATE FUNCTION select_time_points_with_neighbors(
     value mpq,
     prev_value mpq,
     next_value mpq
-  ) AS \$\$
+  ) AS $$
 SELECT
   value,
   LAG(value) OVER (ORDER BY value) prev_value,
@@ -90,7 +80,7 @@ SELECT
 FROM times
 WHERE value > left_window AND value < right_window
 ORDER BY value
-\$\$ LANGUAGE SQL;
+$$ LANGUAGE SQL;
 
 -- Joins `select_time_points_with_neighbors` with the actual time points.
 CREATE FUNCTION select_time_points(
@@ -101,7 +91,7 @@ CREATE FUNCTION select_time_points(
     value mpq,
     prev_value mpq,
     next_value mpq
-  ) AS \$\$
+  ) AS $$
 WITH times_with_lag_and_lead AS (
   SELECT * FROM
     select_time_points_with_neighbors(
@@ -118,7 +108,7 @@ FROM
   times_with_lag_and_lead
 FULL OUTER JOIN time_points
   ON time_points.value = times_with_lag_and_lead.value
-\$\$ LANGUAGE SQL;
+$$ LANGUAGE SQL;
 
 -- Translates the difference between the points to whether or not they are
 -- within the supplied threshold for the window (should they be summarized
@@ -132,7 +122,7 @@ CREATE FUNCTION select_time_points_with_thresholds(
   value mpq,
   in_threshold_left BOOLEAN,
   in_threshold_right BOOLEAN
-) AS \$\$
+) AS $$
 WITH times_with_lag_and_lead AS (
   SELECT * FROM
     select_time_points(
@@ -151,7 +141,7 @@ SELECT
     AS in_threshold_right
 FROM
   times_with_lag_and_lead
-\$\$ LANGUAGE SQL;
+$$ LANGUAGE SQL;
 
 -- Row type for the return value of the complete selection
 CREATE TYPE time_point_or_summary AS (
@@ -172,7 +162,7 @@ CREATE FUNCTION select_time_points_and_summaries(
   left_window mpq,
   right_window mpq,
   threshold mpq
-) RETURNS SETOF time_point_or_summary AS \$\$
+) RETURNS SETOF time_point_or_summary AS $$
 DECLARE
   time_point record;
   count_so_far INTEGER;
@@ -311,7 +301,7 @@ BEGIN
 
   RETURN QUERY SELECT * FROM result;
 END
-\$\$ LANGUAGE 'plpgsql';
+$$ LANGUAGE 'plpgsql';
 
 -- CREATE FUNCTION select_summarized_time_points(
 --   left_window mpq,
@@ -321,7 +311,7 @@ END
 --   value mpq, -- midpoint
 --   count INTEGER
 --   -- id INTEGER -- summary identifier if applicable
--- ) AS \$\$
+-- ) AS $$
 --     WITH times_with_lag_and_lead AS (
 --       SELECT * FROM
 --         select_time_points_with_neighbors(
@@ -356,5 +346,4 @@ END
 --     FROM times_with_group_code
 --     GROUP BY times_with_group_code.group_code
 --     ORDER BY times_with_group_code.group_code
--- \$\$ LANGUAGE SQL;
-EOSQL
+-- $$ LANGUAGE SQL;
