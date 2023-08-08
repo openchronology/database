@@ -11,6 +11,10 @@ psql -v ON_ERROR_STOP=1 \
   --dbname "$POSTGRES_DB" <<-EOSQL
 ' > init.sh
 
+cat schema.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
+cat time_points.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
+cat summaries.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
+cat utils.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
 cat init.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
 
 echo "EOSQL" >> init.sh

@@ -8,16 +8,89 @@ psql -v ON_ERROR_STOP=1 \
   --username "$POSTGRES_USER" \
   --dbname "$POSTGRES_DB" <<-EOSQL
 
+CREATE SCHEMA api;
+
+CREATE ROLE web_anon NOLOGIN;
+
+GRANT USAGE ON SCHEMA api TO web_anon;
+-- GRANT SELECT ON api.todos TO web_anon;
+
+CREATE ROLE AUTHENTICATOR NOINHERIT LOGIN PASSWORD 'asdf';
+GRANT web_anon TO authenticator;
 -- Unique times for entries to be plotted
-CREATE TABLE times (
+CREATE TABLE api.times (
   value mpq PRIMARY KEY
 );
+GRANT ALL ON api.times TO web_anon;
 
+-- Human readable events in time, pointed to the times table
+CREATE TABLE api.time_points (
+  id serial PRIMARY KEY,
+  value mpq NOT NULL,
+  CONSTRAINT fk_time_point
+    FOREIGN KEY(value)
+    REFERENCES api.times(value)
+    ON DELETE CASCADE
+);
+GRANT ALL ON api.time_points TO web_anon;
+GRANT USAGE, SELECT ON SEQUENCE api.time_points_id_seq TO web_anon;
+
+-- Shorthand for inserting a time point
+CREATE FUNCTION api.insert_time_point_func() RETURNS TRIGGER AS \$\$
+BEGIN
+  INSERT INTO api.times(value) VALUES (NEW.value) ON CONFLICT DO NOTHING;
+  RETURN NEW;
+END;
+\$\$ LANGUAGE 'plpgsql';
+
+CREATE TRIGGER insert_time_point_trigger
+  BEFORE INSERT ON api.time_points
+  FOR EACH ROW
+  EXECUTE FUNCTION api.insert_time_point_func();
+
+CREATE FUNCTION api.update_time_point_func() RETURNS TRIGGER AS \$\$
+DECLARE
+  old_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO old_count
+  FROM api.times
+  WHERE api.times.value = OLD.value;
+  IF old_count = 1
+  THEN
+    DELETE FROM api.times WHERE api.times.value = OLD.value; 
+  END IF;
+  INSERT INTO api.times(value) VALUES (NEW.value) ON CONFLICT DO NOTHING;
+END;
+\$\$ LANGUAGE 'plpgsql';
+
+CREATE TRIGGER update_time_point_trigger
+  BEFORE UPDATE ON api.time_points
+  FOR EACH ROW
+  EXECUTE FUNCTION api.update_time_point_func();
+
+CREATE FUNCTION api.delete_time_point_func() RETURNS TRIGGER AS \$\$
+DECLARE
+  old_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO old_count
+  FROM api.times
+  WHERE api.times.value = OLD.value;
+  IF old_count = 1
+  THEN
+    DELETE FROM api.times WHERE times.value = OLD.value; 
+  END IF;
+END;
+\$\$ LANGUAGE 'plpgsql';
+
+CREATE TRIGGER delete_time_point_trigger
+  BEFORE DELETE ON api.time_points
+  FOR EACH ROW
+  EXECUTE FUNCTION api.delete_time_point_func();
 -- Spans of time which can have a human-readable description, and can be
 -- associated with time points. Their visibility can optionally be bounded
 -- by a threshold (i.e. description is only visible after they've zoomed
 -- out by so much, or visible when they're so close, etc.)
-CREATE TABLE summaries (
+CREATE TABLE api.summaries (
   id serial PRIMARY KEY,
   left_bound mpq, -- where should the manual summary be relevant?
   right_bound mpq,
@@ -25,57 +98,62 @@ CREATE TABLE summaries (
   max_threshold mpq,
   CHECK
     (
-      left_bound IS NOT NULL
-      OR
-      right_bound IS NOT NULL
+      (
+        -- there has to be at least one bound
+        left_bound IS NOT NULL
+        OR
+        right_bound IS NOT NULL
+        AND
+        (
+          (
+            -- if they both exist, make sure they're monotonic
+            left_bound IS NOT NULL
+            AND
+            right_bound IS NOT NULL
+            AND
+            left_bound <= right_bound
+          )
+          OR
+          TRUE
+        )
+      )
       AND
       (
         (
-          left_bound IS NOT NULL
+          min_threshold IS NOT NULL
           AND
-          right_bound IS NOT NULL
+          max_threshold IS NOT NULL
           AND
-          left_bound <= right_bound
+          min_threshold < max_threshold -- if they were equal, it'd never be seen 
         )
         OR
         TRUE
       )
-    ) -- there has
-  -- to be at least one bound
+    )
 );
 
--- Human readable events in time, pointed to the times table
-CREATE TABLE time_points (
-  id serial PRIMARY KEY,
-  value mpq NOT NULL,
-  CONSTRAINT fk_time_point
-    FOREIGN KEY(value)
-    REFERENCES times(value)
-);
-
--- Shorthand for inserting a time point
-CREATE PROCEDURE insert_time_point(
-    value mpq
-  ) LANGUAGE SQL AS \$\$
-INSERT INTO times(value) VALUES (value) ON CONFLICT DO NOTHING;
-INSERT INTO time_points(value) VALUES (value);
-\$\$;
+GRANT ALL ON api.summaries TO web_anon;
+GRANT USAGE, SELECT ON SEQUENCE api.summaries_id_seq TO web_anon;
 
 -- Many-to-many relation of time points to summaries
-CREATE TABLE time_point_summary_relations (
+CREATE TABLE api.time_point_summary_relations (
   id serial PRIMARY KEY,
   time_point INTEGER NOT NULL,
   summary INTEGER NOT NULL,
   CONSTRAINT fk_time_point
     FOREIGN KEY(time_point)
-    REFERENCES time_points(id),
+    REFERENCES api.time_points(id)
+    ON DELETE CASCADE,
   CONSTRAINT fk_summary
     FOREIGN KEY(summary)
-    REFERENCES summaries(id)
+    REFERENCES api.summaries(id)
+    ON DELETE CASCADE
 );
 
+GRANT ALL ON api.time_point_summary_relations TO web_anon;
+GRANT USAGE, SELECT ON SEQUENCE api.time_point_summary_relations_id_seq TO web_anon;
 -- Select time points within a window, and their next & previous values
-CREATE FUNCTION select_time_points_with_neighbors(
+CREATE FUNCTION api.select_time_points_with_neighbors(
     left_window mpq,
     right_window mpq
   ) RETURNS TABLE (
@@ -87,13 +165,15 @@ SELECT
   value,
   LAG(value) OVER (ORDER BY value) prev_value,
   LEAD(value) OVER (ORDER BY value) next_value
-FROM times
+FROM api.times
 WHERE value > left_window AND value < right_window
 ORDER BY value
 \$\$ LANGUAGE SQL;
 
+-- GRANT ALL ON api.select_time_points_with_neighbors TO web_anon;
+
 -- Joins `select_time_points_with_neighbors` with the actual time points.
-CREATE FUNCTION select_time_points(
+CREATE FUNCTION api.select_time_points(
     left_window mpq,
     right_window mpq
   ) RETURNS TABLE (
@@ -104,7 +184,7 @@ CREATE FUNCTION select_time_points(
   ) AS \$\$
 WITH times_with_lag_and_lead AS (
   SELECT * FROM
-    select_time_points_with_neighbors(
+    api.select_time_points_with_neighbors(
       left_window,
       right_window
     )
@@ -116,14 +196,16 @@ SELECT
   times_with_lag_and_lead.next_value
 FROM
   times_with_lag_and_lead
-FULL OUTER JOIN time_points
-  ON time_points.value = times_with_lag_and_lead.value
+FULL OUTER JOIN api.time_points
+  ON api.time_points.value = times_with_lag_and_lead.value
 \$\$ LANGUAGE SQL;
+
+-- GRANT ALL ON api.select_time_points TO web_anon;
 
 -- Translates the difference between the points to whether or not they are
 -- within the supplied threshold for the window (should they be summarized
 -- or not
-CREATE FUNCTION select_time_points_with_thresholds(
+CREATE FUNCTION api.select_time_points_with_thresholds(
   left_window mpq,
   right_window mpq,
   threshold mpq
@@ -135,7 +217,7 @@ CREATE FUNCTION select_time_points_with_thresholds(
 ) AS \$\$
 WITH times_with_lag_and_lead AS (
   SELECT * FROM
-    select_time_points(
+    api.select_time_points(
       left_window,
       right_window
     )
@@ -153,8 +235,9 @@ FROM
   times_with_lag_and_lead
 \$\$ LANGUAGE SQL;
 
+-- GRANT ALL ON api.select_time_points_with_thresholds TO web_anon;
 -- Row type for the return value of the complete selection
-CREATE TYPE time_point_or_summary AS (
+CREATE TYPE api.time_point_or_summary AS (
   time_point_id INTEGER,
   time_point_value mpq,
   summary_min mpq,
@@ -168,11 +251,11 @@ CREATE TYPE time_point_or_summary AS (
 
 -- Select all time points and summaries relevant to the window and threshold
 -- FIXME threshold should be relative to window size, not a constant - (0,1)
-CREATE FUNCTION select_time_points_and_summaries(
+CREATE FUNCTION api.select_time_points_and_summaries(
   left_window mpq,
   right_window mpq,
   threshold mpq
-) RETURNS SETOF time_point_or_summary AS \$\$
+) RETURNS SETOF api.time_point_or_summary AS \$\$
 DECLARE
   time_point record;
   count_so_far INTEGER;
@@ -193,7 +276,7 @@ BEGIN
   -- loop over all time points in this window and their summary potential
   FOR time_point IN
     SELECT *
-    FROM select_time_points_with_thresholds(
+    FROM api.select_time_points_with_thresholds(
       left_window,
       right_window,
       threshold
@@ -261,34 +344,40 @@ BEGIN
 
   -- include manually written / human readable summaries
   FOR summary IN
-    SELECT * FROM summaries
+    SELECT * FROM api.summaries
       WHERE
         (
-          summaries.left_bound <= right_window
-          AND
-          summaries.left_bound >= left_window
+          (
+            COALESCE(summaries.left_bound <= right_window, FALSE)
+            AND
+            COALESCE(summaries.left_bound >= left_window, FALSE)
+          )
+          OR
+          (
+            COALESCE(summaries.right_bound <= right_window, FALSE)
+            AND
+            COALESCE(summaries.right_bound >= left_window, FALSE)
+          )
         )
-        OR
-        (
-          summaries.right_bound <= right_window
-          AND
-          summaries.right_bound >= left_window
-        )
+        AND
+        COALESCE(summaries.min_threshold <= threshold, TRUE)
+        AND
+        COALESCE(summaries.max_threshold >= threshold, TRUE)
   LOOP
     SELECT COUNT(*)
       INTO count_so_far
-      FROM time_point_summary_relations
-      RIGHT OUTER JOIN time_points
-      ON time_point_summary_relations.time_point = time_points.id   
+      FROM api.time_point_summary_relations
+      RIGHT OUTER JOIN api.time_points
+      ON api.time_point_summary_relations.time_point = api.time_points.id   
       WHERE
-        time_point_summary_relations.summary = summary.id
-        AND time_points.value <= right_window
-        AND time_points.value >= left_window;
+        api.time_point_summary_relations.summary = summary.id
+        AND api.time_points.value <= right_window
+        AND api.time_points.value >= left_window;
     summary_visible := ARRAY(
       SELECT result.time_point_id
       FROM result
-      INNER JOIN time_point_summary_relations
-      ON time_point_summary_relations.time_point = result.time_point_id
+      INNER JOIN api.time_point_summary_relations
+      ON api.time_point_summary_relations.time_point = result.time_point_id
     );
     INSERT INTO result(
       time_point_id,
@@ -313,48 +402,5 @@ BEGIN
 END
 \$\$ LANGUAGE 'plpgsql';
 
--- CREATE FUNCTION select_summarized_time_points(
---   left_window mpq,
---   right_window mpq,
---   threshold mpq
--- ) RETURNS TABLE (
---   value mpq, -- midpoint
---   count INTEGER
---   -- id INTEGER -- summary identifier if applicable
--- ) AS \$\$
---     WITH times_with_lag_and_lead AS (
---       SELECT * FROM
---         select_time_points_with_neighbors(
---           left_window,
---           right_window
---         )
---     ), times_closer_than_threshold AS (
---       SELECT 
---         times_with_lag_and_lead.value,
---         ABS(times_with_lag_and_lead.value - prev_value) < threshold
---           AS in_threshold_left,
---         ABS(next_value - times_with_lag_and_lead.value) < threshold
---           AS in_threshold_right
---       FROM
---         times_with_lag_and_lead
---     ), times_with_group_code AS (
---       SELECT
---         COUNT(is_too_close) OVER w AS group_code,
---         MIN(times_closer_than_threshold.value) OVER w
---           +
---         MAX(times_closer_than_threshold.value) OVER w
---           / mpq('2') AS middle,
---         times_closer_than_threshold.value
---       FROM
---         times_closer_than_threshold
---       WINDOW w AS (ORDER BY times_closer_than_threshold.value)
---     )
---     SELECT
---       SUM(times_with_group_code.middle) / mpq(COUNT(*)) AS value,
---       COUNT(*) AS count
---       -- id should match in its selection criteria
---     FROM times_with_group_code
---     GROUP BY times_with_group_code.group_code
---     ORDER BY times_with_group_code.group_code
--- \$\$ LANGUAGE SQL;
+-- GRANT ALL ON api.select_time_points_and_summaries TO web_anon;
 EOSQL
