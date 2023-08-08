@@ -57,7 +57,7 @@ Glossary
 | Window          | View of a timeline, bounded by a $left\enspace bound$,
 $right\enspace bound$, and a $precision$, where
 $left\enspace bound \lteq right\enspace bound$ and
-$0\% < precision \lteq 100%$. |
+$0\% < precision <= 100%$. |
 | Time Point      | A single instance on the timeline, with time value being a
 rational number $\mathbf{Q}$. |
 | Summary         | A _defined_ human readable summary instance, with an
