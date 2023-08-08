@@ -164,4 +164,3 @@ BEGIN
 END
 $$ LANGUAGE 'plpgsql';
 
--- GRANT ALL ON api.select_time_points_and_summaries TO web_anon;

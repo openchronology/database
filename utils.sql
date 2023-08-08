@@ -16,7 +16,6 @@ WHERE value > left_window AND value < right_window
 ORDER BY value
 $$ LANGUAGE SQL;
 
--- GRANT ALL ON api.select_time_points_with_neighbors TO web_anon;
 
 -- Joins `select_time_points_with_neighbors` with the actual time points.
 CREATE FUNCTION api.select_time_points(
@@ -46,7 +45,6 @@ FULL OUTER JOIN api.time_points
   ON api.time_points.value = times_with_lag_and_lead.value
 $$ LANGUAGE SQL;
 
--- GRANT ALL ON api.select_time_points TO web_anon;
 
 -- Translates the difference between the points to whether or not they are
 -- within the supplied threshold for the window (should they be summarized
@@ -81,4 +79,3 @@ FROM
   times_with_lag_and_lead
 $$ LANGUAGE SQL;
 
--- GRANT ALL ON api.select_time_points_with_thresholds TO web_anon;
