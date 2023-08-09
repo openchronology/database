@@ -9,7 +9,7 @@ services:
     restart: always
     environment:
       POSTGRES_DB: pgmp-test-db
-      POSTGRES_PASSWORD: asdf
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
 
@@ -24,4 +24,8 @@ services:
       PGRST_DB_URI: "postgres://authenticator:${PGRST_AUTHENTICATOR_PW}@sql:5432/pgmp-test-db"
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_DB_SCHEMAS: api
+      PGRST_DB_MAX_ROWS: 100
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
+      PGRST_JWT_AUD: ${PGRST_JWT_AUD}
+      PGRST_JWT_ROLE_CLAIM_KEY: ".\"${PGRST_JWT_AUD}/role\""
 

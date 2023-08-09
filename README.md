@@ -11,7 +11,7 @@ There is a `Dockerfile` associated with this project, and it's easiest to
 just follow the `docker-compose.yml` file:
 
 ```bash
-./build-init.sh && docker compose up
+./build-init.sh && docker compose --env-file .env up
 ```
 
 `build-init.sh` will generate a complete `init.sh` script to load the
