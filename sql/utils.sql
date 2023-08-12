@@ -41,7 +41,7 @@ SELECT
   times_with_lag_and_lead.next_value
 FROM
   times_with_lag_and_lead
-FULL OUTER JOIN api.time_points
+INNER JOIN api.time_points
   ON api.time_points.value = times_with_lag_and_lead.value
 $$ LANGUAGE SQL;
 
@@ -66,7 +66,7 @@ WITH times_with_lag_and_lead AS (
       right_window
     )
 )
-SELECT 
+SELECT
   times_with_lag_and_lead.id,
   times_with_lag_and_lead.value,
   -- false values get translated to nulls
