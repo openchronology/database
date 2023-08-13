@@ -61,3 +61,13 @@ Glossary
 | Threshold       | A distance between points, measured as $\mathbf{Q}$.                                                                                                                                                                                                                                                                                                                                                                         |
 | Precision       | A percentage of the window size, between $0\\%$ and $100\\%$.                                                                                                                                                                                                                                                                                                                                                                |
 
+Test
+-----
+
+The test suite uses rust as a client for the PostgREST server - to run it, simply execute
+
+```bash
+cd tests && cargo run
+```
+
+while the docker-compose suite is running.
