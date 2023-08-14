@@ -6,6 +6,7 @@ use crate::{
 
 use std::time::{Instant, Duration};
 use quickcheck::{Arbitrary, Gen};
+use color_print::cprintln;
 
 pub async fn verify_select_time_points_and_summaries(
     client: &reqwest::Client,
@@ -40,7 +41,7 @@ pub async fn verify_select_time_points_and_summaries(
         .resolve(Duration::from_secs_f64);
     let lengths_stats = Stats::new(&lengths, |x| *x as f64);
 
-    println!("Success");
+    cprintln!("<green>Success</green>");
     println!(
         "Time Taken to Process Selection\n\t{}",
         times_stats.print_stats()

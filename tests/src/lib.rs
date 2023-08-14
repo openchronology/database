@@ -9,6 +9,7 @@ pub mod rpcs;
 pub mod stats;
 pub mod bounds;
 pub mod tests;
+pub mod session;
 
 use crate::tables::{
     time_points::{insert::insert_time_point, select as time_points},

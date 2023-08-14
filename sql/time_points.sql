@@ -2,19 +2,24 @@
 CREATE TABLE api.times (
   value mpq PRIMARY KEY
 );
-GRANT ALL ON api.times TO web_anon;
+GRANT ALL ON api.times TO guest_group;
 
 -- Human readable events in time, pointed to the times table
 CREATE TABLE api.time_points (
   id serial PRIMARY KEY,
   value mpq NOT NULL,
+  timeline INTEGER NOT NULL,
   CONSTRAINT fk_time_point
     FOREIGN KEY(value)
     REFERENCES api.times(value)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_timeline
+    FOREIGN KEY(timeline)
+    REFERENCES api.timelines(id)
     ON DELETE CASCADE
 );
-GRANT ALL ON api.time_points TO web_anon;
-GRANT USAGE, SELECT ON SEQUENCE api.time_points_id_seq TO web_anon;
+GRANT SELECT ON api.time_points TO guest_group;
+GRANT USAGE, SELECT ON SEQUENCE api.time_points_id_seq TO guest_group;
 
 -- Shorthand for inserting a time point
 CREATE FUNCTION api.insert_time_point_func() RETURNS TRIGGER AS $$
@@ -38,7 +43,7 @@ BEGIN
   WHERE api.times.value = OLD.value;
   IF old_count = 1
   THEN
-    DELETE FROM api.times WHERE api.times.value = OLD.value; 
+    DELETE FROM api.times WHERE api.times.value = OLD.value;
   END IF;
   INSERT INTO api.times(value) VALUES (NEW.value) ON CONFLICT DO NOTHING;
 END;
@@ -58,7 +63,7 @@ BEGIN
   WHERE api.times.value = OLD.value;
   IF old_count = 1
   THEN
-    DELETE FROM api.times WHERE times.value = OLD.value; 
+    DELETE FROM api.times WHERE times.value = OLD.value;
   END IF;
 END;
 $$ LANGUAGE 'plpgsql';

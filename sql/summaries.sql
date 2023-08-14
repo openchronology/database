@@ -36,7 +36,7 @@ CREATE TABLE api.summaries (
           AND
           max_threshold IS NOT NULL
           AND
-          min_threshold < max_threshold -- if they were equal, it'd never be seen 
+          min_threshold < max_threshold -- if they were equal, it'd never be seen
         )
         OR
         TRUE
@@ -44,8 +44,8 @@ CREATE TABLE api.summaries (
     )
 );
 
-GRANT ALL ON api.summaries TO web_anon;
-GRANT USAGE, SELECT ON SEQUENCE api.summaries_id_seq TO web_anon;
+GRANT ALL ON api.summaries TO guest_group;
+GRANT USAGE, SELECT ON SEQUENCE api.summaries_id_seq TO guest_group;
 
 -- Many-to-many relation of time points to summaries
 CREATE TABLE api.time_point_summary_relations (
@@ -62,5 +62,5 @@ CREATE TABLE api.time_point_summary_relations (
     ON DELETE CASCADE
 );
 
-GRANT ALL ON api.time_point_summary_relations TO web_anon;
-GRANT USAGE, SELECT ON SEQUENCE api.time_point_summary_relations_id_seq TO web_anon;
+GRANT ALL ON api.time_point_summary_relations TO guest_group;
+GRANT USAGE, SELECT ON SEQUENCE api.time_point_summary_relations_id_seq TO guest_group;

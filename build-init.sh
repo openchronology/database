@@ -15,6 +15,7 @@ set -a
 source .env
 
 envsubst < sql/schema.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
+envsubst < sql/timelines.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
 envsubst < sql/time_points.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
 envsubst < sql/summaries.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh
 envsubst < sql/utils.sql | sed 's/\$\$/\\\$\\\$/g' >> init.sh

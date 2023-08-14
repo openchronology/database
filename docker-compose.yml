@@ -8,7 +8,7 @@ services:
     # - 5432:5432
     restart: always
     environment:
-      POSTGRES_DB: pgmp-test-db
+      POSTGRES_DB: openchronology
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
@@ -21,8 +21,8 @@ services:
       - 3000:3000
     restart: always
     environment:
-      PGRST_DB_URI: "postgres://authenticator:${PGRST_AUTHENTICATOR_PW}@sql:5432/pgmp-test-db"
-      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_DB_URI: "postgres://authenticator_user:${PGRST_AUTHENTICATOR_PW}@sql:5432/openchronology"
+      PGRST_DB_ANON_ROLE: guest_group
       PGRST_DB_SCHEMAS: api
       PGRST_DB_MAX_ROWS: 10000
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
