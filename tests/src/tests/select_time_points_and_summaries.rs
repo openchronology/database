@@ -8,16 +8,19 @@ use std::time::{Instant, Duration};
 use quickcheck::{Arbitrary, Gen};
 use color_print::cprintln;
 
+
+const NUM_TESTS: usize = 100;
+
 pub async fn verify_select_time_points_and_summaries(
     client: &reqwest::Client,
     g: &mut Gen,
 ) -> Result<(), String> {
-    println!("Verify `select_time_points_and_summaries`...");
+    print!("Verify `select_time_points_and_summaries`... ");
 
     let mut times: Vec<Duration> = vec![];
     let mut lengths: Vec<usize> = vec![];
 
-    for i in 0..100 {
+    for i in 0..NUM_TESTS {
         let sample = MonotonicBounds::arbitrary(g);
         let now = Instant::now();
         let result = select_time_points_and_summaries(&client, sample.clone()).await;

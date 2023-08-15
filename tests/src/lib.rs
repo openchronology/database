@@ -11,9 +11,13 @@ pub mod bounds;
 pub mod tests;
 pub mod session;
 
-use crate::tables::{
-    time_points::{insert::insert_time_point, select as time_points},
-    times::select as times,
+use crate::{
+    consts::TEST_USER_USER,
+    session::gen_jwt,
+    tables::{
+        time_points::{insert::insert_time_point, select as time_points},
+        times::select as times, timelines::insert::insert_timeline,
+    }
 };
 
 use common::MPQ;
@@ -21,11 +25,25 @@ use quickcheck::{Arbitrary, Gen};
 
 
 const GENERATED_ROWS: usize = 1000;
+const GENERATED_TIMELINES: usize = 100;
 
 
 pub async fn prepare_db(client: &reqwest::Client, g: &mut Gen) {
+    let mut timelines = vec![];
+    let jwt = &gen_jwt(TEST_USER_USER);
+    println!("Using JWT to generate timelines: {:?}", jwt);
+    for _i in 0..GENERATED_TIMELINES {
+        match insert_timeline(jwt, client).await {
+            Err(e) => panic!("Couldn't insert initial timeline: {:?}", e),
+            Ok(timeline_id) => {
+                timelines.push(timeline_id);
+            }
+        }
+    }
+
     for _i in 0..GENERATED_ROWS {
-        if let Err(e) = insert_time_point(&client, MPQ::arbitrary(g)).await {
+        let timeline = timelines[usize::arbitrary(g) % timelines.len()];
+        if let Err(e) = insert_time_point(jwt, &client, MPQ::arbitrary(g), timeline).await {
             panic!("Couldn't insert random time point: {:?}", e);
         }
     }

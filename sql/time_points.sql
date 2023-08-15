@@ -19,9 +19,58 @@ CREATE TABLE api.time_points (
     ON DELETE CASCADE
 );
 GRANT SELECT ON api.time_points TO guest_group;
-GRANT USAGE, SELECT ON SEQUENCE api.time_points_id_seq TO guest_group;
 
--- Shorthand for inserting a time point
+ALTER TABLE api.time_points ENABLE ROW LEVEL SECURITY;
+-- all time_points are visible to guests
+CREATE POLICY time_points_select_policy
+  ON api.time_points
+  FOR SELECT
+  USING (TRUE);
+-- only a timeline owned can be edited or inserted
+CREATE POLICY time_points_insert_policy
+  ON api.time_points
+  FOR INSERT
+  WITH CHECK (
+    timeline IN (
+      SELECT api.timelines.id
+        FROM api.timelines
+      WHERE api.timelines.author = current_user
+    )
+    OR
+    'mod_group' IN (
+      SELECT get_roles(text(current_user))
+    )
+  );
+CREATE POLICY time_points_update_policy
+  ON api.time_points
+  FOR UPDATE
+  USING (
+    timeline IN (
+      SELECT api.timelines.id
+        FROM api.timelines
+      WHERE api.timelines.author = current_user
+    )
+    OR
+    'mod_group' IN (
+      SELECT get_roles(text(current_user))
+    )
+  );
+CREATE POLICY time_points_delete_policy
+  ON api.time_points
+  FOR DELETE
+  USING (
+    timeline IN (
+      SELECT api.timelines.id
+        FROM api.timelines
+      WHERE api.timelines.author = current_user
+    )
+    OR
+    'mod_group' IN (
+      SELECT get_roles(text(current_user))
+    )
+  );
+
+-- Shorthand for inserting a unique time whenever inserting a time point
 CREATE FUNCTION api.insert_time_point_func() RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO api.times(value) VALUES (NEW.value) ON CONFLICT DO NOTHING;

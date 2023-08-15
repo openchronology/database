@@ -1,13 +1,14 @@
 use crate::consts::PGRST_HOST;
 
-use common::MPQ;
+use common::{MPQ, Identifier};
 
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimePoint {
-    id: i32,
+    id: Identifier,
     value: MPQ,
+    timeline: Identifier,
 }
 
 pub async fn select_all(client: &reqwest::Client) -> Result<Vec<TimePoint>, String> {

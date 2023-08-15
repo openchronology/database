@@ -2,6 +2,7 @@
 CREATE TYPE api.time_point_or_summary AS (
   time_point_id INTEGER,
   time_point_value mpq,
+  time_point_timeline INTEGER,
   summary_min mpq,
   summary_max mpq,
   summary_count INTEGER, -- represents the count _not_ currently visible
@@ -29,6 +30,7 @@ BEGIN
   CREATE TEMP TABLE result (
     time_point_id INTEGER,
     time_point_value mpq,
+    time_point_timeline INTEGER,
     summary_min mpq,
     summary_max mpq,
     summary_count INTEGER,
@@ -53,19 +55,11 @@ BEGIN
       INSERT INTO result(
         time_point_id,
         time_point_value,
-        summary_min,
-        summary_max,
-        summary_count,
-        summary_visible,
-        summary_id
+        time_point_timeline
       ) VALUES (
         time_point.id,
         time_point.value,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL
+        time_point.timeline
       );
     ELSIF
       time_point.in_threshold_right
@@ -82,16 +76,12 @@ BEGIN
     THEN
     -- it's the end of a summary
       INSERT INTO result(
-        time_point_id,
-        time_point_value,
         summary_min,
         summary_max,
         summary_count,
         summary_visible,
         summary_id
       ) VALUES (
-        NULL,
-        NULL,
         summary_min,
         time_point.value,
         count_so_far + 1,
@@ -130,7 +120,7 @@ BEGIN
       INTO count_so_far
       FROM api.time_point_summary_relations
       RIGHT OUTER JOIN api.time_points
-      ON api.time_point_summary_relations.time_point = api.time_points.id   
+      ON api.time_point_summary_relations.time_point = api.time_points.id
       WHERE
         api.time_point_summary_relations.summary = summary.id
         AND api.time_points.value <= right_window
@@ -142,16 +132,12 @@ BEGIN
       ON api.time_point_summary_relations.time_point = result.time_point_id
     );
     INSERT INTO result(
-      time_point_id,
-      time_point_value,
       summary_min,
       summary_max,
       summary_count,
       summary_visible,
       summary_id
     ) VALUES (
-      NULL,
-      NULL,
       summary.left_bound,
       summary.right_bound,
       count_so_far - COALESCE(array_length(summary_visible, 1), 0),

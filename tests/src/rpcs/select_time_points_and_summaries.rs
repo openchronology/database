@@ -3,7 +3,7 @@ use crate::{
     consts::PGRST_HOST,
 };
 
-use common::MPQ;
+use common::{MPQ, Identifier};
 
 use num_rational::BigRational;
 use num_traits::FromPrimitive;
@@ -19,32 +19,33 @@ struct SelectTimePointsAndSummaries {
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
 struct TimePointOrSummaryRow {
-    time_point_id: Option<i32>,
+    time_point_id: Option<Identifier>,
     time_point_value: Option<MPQ>,
+    time_point_timeline: Option<Identifier>,
     summary_min: Option<MPQ>,
     summary_max: Option<MPQ>,
-    summary_count: Option<i32>,
-    summary_visible: Option<Vec<i32>>,
-    summary_id: Option<i32>,
+    summary_count: Option<Identifier>,
+    summary_visible: Option<Vec<Identifier>>,
+    summary_id: Option<Identifier>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 enum TimePointOrSummary {
     TimePoint {
-        id: i32,
+        id: Identifier,
         value: BigRational,
     },
     GeneralSummary {
         min: BigRational,
         max: BigRational,
-        count: i32,
+        count: Identifier,
     },
     Summary {
         min: BigRational,
         max: BigRational,
-        count: i32,
-        visible: Vec<i32>,
-        id: i32,
+        count: Identifier,
+        visible: Vec<Identifier>,
+        id: Identifier,
     },
 }
 

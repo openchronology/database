@@ -1,5 +1,5 @@
 -- Select time points within a window, and their next & previous values
-CREATE FUNCTION api.select_time_points_with_neighbors(
+CREATE FUNCTION api.select_times_with_neighbors(
     left_window mpq,
     right_window mpq
   ) RETURNS TABLE (
@@ -17,19 +17,20 @@ ORDER BY value
 $$ LANGUAGE SQL;
 
 
--- Joins `select_time_points_with_neighbors` with the actual time points.
+-- Joins `select_times_with_neighbors` with the actual time points.
 CREATE FUNCTION api.select_time_points(
     left_window mpq,
     right_window mpq
   ) RETURNS TABLE (
     id INTEGER, -- each of these are nullable
     value mpq,
+    timeline INTEGER,
     prev_value mpq,
     next_value mpq
   ) AS $$
 WITH times_with_lag_and_lead AS (
   SELECT * FROM
-    api.select_time_points_with_neighbors(
+    api.select_times_with_neighbors(
       left_window,
       right_window
     )
@@ -37,6 +38,7 @@ WITH times_with_lag_and_lead AS (
 SELECT
   time_points.id,
   times_with_lag_and_lead.value,
+  time_points.timeline,
   times_with_lag_and_lead.prev_value,
   times_with_lag_and_lead.next_value
 FROM
@@ -56,6 +58,7 @@ CREATE FUNCTION api.select_time_points_with_thresholds(
 ) RETURNS TABLE (
   id INTEGER,
   value mpq,
+  timeline INTEGER,
   in_threshold_left BOOLEAN,
   in_threshold_right BOOLEAN
 ) AS $$
@@ -69,6 +72,7 @@ WITH times_with_lag_and_lead AS (
 SELECT
   times_with_lag_and_lead.id,
   times_with_lag_and_lead.value,
+  times_with_lag_and_lead.timeline,
   -- false values get translated to nulls
   ABS(times_with_lag_and_lead.value - prev_value) < threshold OR NULL
     AS in_threshold_left,
