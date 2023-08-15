@@ -13,7 +13,7 @@ struct InsertedTimeline {
     id: Identifier,
 }
 
-pub async fn insert_timeline(
+pub async fn insert(
     jwt: &JWT,
     client: &reqwest::Client,
 ) -> Result<Identifier, String> {

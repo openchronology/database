@@ -1,16 +1,19 @@
 pub mod select_time_points_and_summaries;
-pub mod select_timeline_after_insert;
+pub mod insert_then_delete_timeline;
+pub mod insert_then_delete_time_point;
 
 use select_time_points_and_summaries::verify_select_time_points_and_summaries;
-use select_timeline_after_insert::verify_select_timeline_after_insert;
+use insert_then_delete_timeline::verify_insert_then_delete_timeline;
+use insert_then_delete_time_point::verify_insert_then_delete_time_point;
 
 use quickcheck::Gen;
 use color_print::cprintln;
 
 pub async fn run_tests(client: &reqwest::Client, g: &mut Gen) {
     let results = vec![
+        verify_insert_then_delete_timeline(client).await,
+        verify_insert_then_delete_time_point(client, g).await,
         verify_select_time_points_and_summaries(client, g).await,
-        verify_select_timeline_after_insert(client).await,
     ];
     let result: Result<Vec<()>, String> = results.into_iter().collect();
 

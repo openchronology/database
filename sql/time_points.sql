@@ -95,6 +95,7 @@ BEGIN
     DELETE FROM api.times WHERE api.times.value = OLD.value;
   END IF;
   INSERT INTO api.times(value) VALUES (NEW.value) ON CONFLICT DO NOTHING;
+  RETURN NEW;
 END;
 $$ LANGUAGE 'plpgsql';
 
@@ -114,10 +115,11 @@ BEGIN
   THEN
     DELETE FROM api.times WHERE times.value = OLD.value;
   END IF;
+  RETURN OLD;
 END;
 $$ LANGUAGE 'plpgsql';
 
 CREATE TRIGGER delete_time_point_trigger
-  BEFORE DELETE ON api.time_points
+  AFTER DELETE ON api.time_points
   FOR EACH ROW
   EXECUTE FUNCTION api.delete_time_point_func();

@@ -14,7 +14,7 @@ struct InsertedTimePoint {
     id: Identifier,
 }
 
-pub async fn insert_time_point(
+pub async fn insert(
     jwt: &JWT,
     client: &reqwest::Client,
     value: MPQ,
