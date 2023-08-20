@@ -1,6 +1,4 @@
-use crate::consts::PGRST_HOST;
-
-use common::Identifier;
+use common::{Identifier, consts::PGRST_HOST};
 
 use serde::{Serialize, Deserialize};
 

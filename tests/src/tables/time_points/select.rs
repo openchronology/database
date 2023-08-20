@@ -1,6 +1,4 @@
-use crate::consts::PGRST_HOST;
-
-use common::{MPQ, Identifier};
+use common::{MPQ, Identifier, consts::PGRST_HOST};
 
 use serde::{Serialize, Deserialize};
 

@@ -9,3 +9,6 @@ CALL touch_user('test_mod_user');
 CALL touch_user('test_admin_user');
 GRANT mod_group TO test_mod_user;
 GRANT admin_group TO test_admin_user;
+
+CALL touch_user('cron_user');
+GRANT mod_group TO cron_user;

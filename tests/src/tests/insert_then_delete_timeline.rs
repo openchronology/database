@@ -1,12 +1,10 @@
-use crate::{
-    consts::TEST_USER_USER,
-    session::gen_jwt,
-    tables::timelines::{
-        insert::insert,
-        select::select,
-        delete::delete,
-    },
+use crate::tables::timelines::{
+    insert::insert,
+    select::select,
+    delete::delete,
 };
+use common::{consts::TEST_USER_USER, session::gen_jwt};
+
 use color_print::cprintln;
 
 const NUM_TESTS: usize = 100;

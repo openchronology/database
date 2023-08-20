@@ -1,6 +1,4 @@
-use crate::{consts::PGRST_HOST, session::JWT};
-
-use common::Identifier;
+use common::{Identifier, consts::PGRST_HOST, session::JWT};
 
 use serde::{Serialize, Deserialize};
 

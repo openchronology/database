@@ -9,6 +9,7 @@ services:
     restart: always
     environment:
       POSTGRES_DB: openchronology
+      POSTGRES_USER: postgres # needed for the prune-old-sesisons.sh script
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
@@ -28,4 +29,13 @@ services:
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
       PGRST_JWT_AUD: ${PGRST_JWT_AUD}
       PGRST_JWT_ROLE_CLAIM_KEY: ".\"${PGRST_JWT_AUD}/role\""
+
+  sql-cron:
+    image: ubuntu:22.04
+    depends_on:
+      - sql-rest
+    restart: always
+    volumes:
+      - ./cron-runner/target/debug/cron-runner:/opt/cron-runner
+    command: /opt/cron-runner
 

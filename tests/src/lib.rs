@@ -1,26 +1,15 @@
-#[macro_use]
-extern crate dotenv_codegen;
-#[macro_use]
-extern crate lazy_static;
-
-pub mod consts;
 pub mod tables;
 pub mod rpcs;
 pub mod stats;
 pub mod bounds;
 pub mod tests;
-pub mod session;
 
-use crate::{
-    consts::TEST_USER_USER,
-    session::gen_jwt,
-    tables::{
-        time_points,
-        times::select as times, timelines::insert as timeline,
-    }
+use crate::tables::{
+    time_points,
+    times::select as times, timelines::insert as timeline,
 };
 
-use common::MPQ;
+use common::{MPQ, consts::TEST_USER_USER, session::gen_jwt};
 use quickcheck::{Arbitrary, Gen};
 
 

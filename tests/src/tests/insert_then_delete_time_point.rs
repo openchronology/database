@@ -1,14 +1,13 @@
-use crate::{
-    consts::TEST_USER_USER,
-    session::gen_jwt,
-    tables::{time_points::{
+use crate::tables::{
+    time_points::{
         insert::insert,
         select::select,
         delete::delete,
-    }, timelines},
+    },
+    timelines,
 };
 
-use common::MPQ;
+use common::{MPQ, consts::TEST_USER_USER, session::gen_jwt};
 
 use color_print::cprintln;
 use quickcheck::{Gen, Arbitrary};

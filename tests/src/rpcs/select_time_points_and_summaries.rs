@@ -1,9 +1,6 @@
-use crate::{
-    bounds::MonotonicBounds,
-    consts::PGRST_HOST,
-};
+use crate::bounds::MonotonicBounds;
 
-use common::{MPQ, Identifier};
+use common::{MPQ, Identifier, consts::PGRST_HOST};
 
 use num_rational::BigRational;
 use num_traits::FromPrimitive;
