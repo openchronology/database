@@ -1,4 +1,4 @@
-use common::{MPQ, Identifier, consts::PGRST_HOST, session::JWT};
+use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}, session::JWT};
 
 use serde::{Serialize, Deserialize};
 
@@ -21,10 +21,11 @@ pub async fn insert(
 ) -> Result<Identifier, String> {
     let x = InsertTimePoint { value, timeline };
 
-    let res = client.post(format!("{}/time_points?select=id", *PGRST_HOST))
+    let res = client.post(format!("{}/time_points?select=id", *REST_DATABASE_HOST))
         .json(&x)
         .header("Authorization", jwt.to_string())
         .header("Prefer", "return=representation")
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;

@@ -1,6 +1,6 @@
 use crate::bounds::MonotonicBounds;
 
-use common::{MPQ, Identifier, consts::PGRST_HOST};
+use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST, REST_DATABASE_HOST_HEADER}};
 
 use num_rational::BigRational;
 use num_traits::FromPrimitive;
@@ -88,7 +88,8 @@ pub async fn select_time_points_and_summaries(
             MPQ(t)
         },
     };
-    let res = client.post(format!("{}/rpc/select_time_points_and_summaries", *PGRST_HOST))
+    let res = client.post(format!("{}/rpc/select_time_points_and_summaries", *REST_DATABASE_HOST))
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .json(&params)
         .send()
         .await;

@@ -1,4 +1,4 @@
-use common::{Identifier, consts::PGRST_HOST, session::JWT};
+use common::{Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}, session::JWT};
 
 pub async fn delete(
     jwt: &JWT,
@@ -6,8 +6,9 @@ pub async fn delete(
     id: Identifier,
 ) -> Result<(), String> {
 
-    let res = client.delete(format!("{}/timelines?id=eq.{}", *PGRST_HOST, id))
+    let res = client.delete(format!("{}/timelines?id=eq.{}", *REST_DATABASE_HOST, id))
         .header("Authorization", jwt.to_string())
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;

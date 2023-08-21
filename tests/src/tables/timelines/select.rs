@@ -1,4 +1,4 @@
-use common::{Identifier, consts::PGRST_HOST};
+use common::{Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}};
 
 use serde::{Serialize, Deserialize};
 
@@ -9,7 +9,8 @@ pub struct Timeline {
 }
 
 pub async fn select_all(client: &reqwest::Client) -> Result<Vec<Timeline>, String> {
-    let res = client.get(format!("{}/timelines", *PGRST_HOST))
+    let res = client.get(format!("{}/timelines", *REST_DATABASE_HOST))
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -19,7 +20,8 @@ pub async fn select_all(client: &reqwest::Client) -> Result<Vec<Timeline>, Strin
 }
 
 pub async fn select(client: &reqwest::Client, id: Identifier) -> Result<Timeline, String> {
-    let res = client.get(format!("{}/timelines?id=eq.{}", *PGRST_HOST, id))
+    let res = client.get(format!("{}/timelines?id=eq.{}", *REST_DATABASE_HOST, id))
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;

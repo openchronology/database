@@ -1,4 +1,4 @@
-use common::{MPQ, Identifier, consts::PGRST_HOST};
+use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}};
 
 use serde::{Serialize, Deserialize};
 
@@ -10,7 +10,8 @@ pub struct TimePoint {
 }
 
 pub async fn select_all(client: &reqwest::Client) -> Result<Vec<TimePoint>, String> {
-    let res = client.get(format!("{}/time_points", *PGRST_HOST))
+    let res = client.get(format!("{}/time_points", *REST_DATABASE_HOST))
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -20,7 +21,8 @@ pub async fn select_all(client: &reqwest::Client) -> Result<Vec<TimePoint>, Stri
 }
 
 pub async fn select(client: &reqwest::Client, id: Identifier) -> Result<TimePoint, String> {
-    let res = client.get(format!("{}/time_points?id=eq.{}", *PGRST_HOST, id))
+    let res = client.get(format!("{}/time_points?id=eq.{}", *REST_DATABASE_HOST, id))
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
         .await
         .map_err(|e| e.to_string())?;
