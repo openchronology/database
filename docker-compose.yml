@@ -18,10 +18,13 @@ services:
     image: postgrest/postgrest:latest
     depends_on:
       - sql
-    ports:
-      - 3000:3000
+    # ports:
+    #   - ${HOST_PGRST_SERVER_PORT}:${PGRST_SERVER_PORT}
+    expose:
+      - ${PGRST_SERVER_PORT}
     restart: always
     environment:
+      PGRST_SERVER_PORT: ${PGRST_SERVER_PORT}
       PGRST_DB_URI: "postgres://authenticator_user:${PGRST_AUTHENTICATOR_PW}@sql:5432/openchronology"
       PGRST_DB_ANON_ROLE: guest_group
       PGRST_DB_SCHEMAS: api
@@ -29,6 +32,8 @@ services:
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
       PGRST_JWT_AUD: ${PGRST_JWT_AUD}
       PGRST_JWT_ROLE_CLAIM_KEY: ".\"${PGRST_JWT_AUD}/role\""
+      VIRTUAL_PORT: ${PGRST_SERVER_PORT}
+      VIRTUAL_HOST: "database.local"
 
   sql-cron:
     image: ubuntu:22.04
@@ -37,5 +42,19 @@ services:
     restart: always
     volumes:
       - ./cron-runner/target/debug/cron-runner:/opt/cron-runner
+    environment:
+      RUST_LOG: cron_runner
+      PGRST_SERVER_PORT: ${PGRST_SERVER_PORT}
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
+      PGRST_JWT_AUD: ${PGRST_JWT_AUD}
+      PGRST_HOST: sql-rest
     command: /opt/cron-runner
 
+  proxy:
+    image: nginxproxy/nginx-proxy
+    ports:
+      - 80:80
+    depends_on:
+      - sql-rest
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro

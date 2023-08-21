@@ -33,6 +33,7 @@ BEGIN
     'GRANT USAGE, SELECT ON api.time_points_id_seq TO %1$I; '
     'GRANT ALL ON api.timelines TO %1$I; '
     'GRANT USAGE, SELECT ON api.timelines_id_seq TO %1$I; '
+    'GRANT ALL ON api.sessions TO %1$I; '
     'GRANT user_group TO %1$I; '
     'END IF; '
     'END '

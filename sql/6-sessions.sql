@@ -11,12 +11,6 @@ CREATE TABLE api.sessions (
 );
 GRANT SELECT, INSERT, UPDATE ON api.sessions TO guest_group;
 
-CREATE PROCEDURE api.prune_old_sessions() LANGUAGE 'plpgsql' AS $$
-BEGIN
-  DELETE FROM api.sessions WHERE last_interaction < NOW() - INTERVAL '10 MINUTES';
-END
-$$;
-
 ALTER TABLE api.sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY sessions_policy
   ON api.sessions

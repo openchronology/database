@@ -19,6 +19,11 @@ extensions to PostgreSQL and also initialize the database with everything in
 `sql/`. There is a slight order requirement between those SQL files - see the
 `build-init.sh` script for details.
 
+It will also build the `cron-runner/` project with `cargo` - ensure you have
+the Rust toolchain installed, as the binary is copied to the docker environment.
+The `cron-runner` executable will run alongside the PostgreSQL and PostgREST
+containers, as it will interact with the database to do routine actions.
+
 Philosophy
 ----------
 
@@ -67,7 +72,7 @@ Test
 The test suite uses rust as a client for the PostgREST server - to run it, simply execute
 
 ```bash
-cd tests && cargo run
+cd tests && export $(grep -v '^#' ../.env | xargs -d '\n') && cargo run
 ```
 
 while the docker-compose suite is running.

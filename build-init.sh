@@ -23,3 +23,5 @@ cat sql/* \
     >> init.sh
 
 echo "EOSQL" >> init.sh
+
+cd cron-runner/ && cargo build && cd ../
