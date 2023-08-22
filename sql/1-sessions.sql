@@ -11,12 +11,21 @@ CREATE TABLE api.sessions (
 );
 GRANT SELECT, INSERT, UPDATE ON api.sessions TO guest_group;
 
+CREATE VIEW api.sessions_precomupted AS
+  SELECT
+    *,
+    pos - zoom AS left_window,
+    pos + zoom AS right_window,
+    zoom * mpq(2) * field AS threshold
+  FROM api.sessions;
+
 ALTER TABLE api.sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY sessions_policy
   ON api.sessions
     USING (current_user = owner OR 'mod_group' IN (SELECT get_roles(text(current_user))))
     WITH CHECK (current_user = owner OR 'mod_group' IN (SELECT get_roles(text(current_user))));
 
+-- Don't let people make a session on behalf of another user
 CREATE FUNCTION api.insert_session_func() RETURNS TRIGGER AS $$
 BEGIN
   NEW.id := gen_random_uuid();
@@ -29,6 +38,7 @@ CREATE TRIGGER insert_session_trigger
   FOR EACH ROW
   EXECUTE FUNCTION api.insert_session_func();
 
+-- Don't let people change their session id or owner
 CREATE FUNCTION api.update_session_func() RETURNS TRIGGER AS $$
 BEGIN
   NEW.id := OLD.id;
@@ -40,3 +50,8 @@ CREATE TRIGGER update_session_trigger
   BEFORE UPDATE ON api.sessions
   FOR EACH ROW
   EXECUTE FUNCTION api.update_session_func();
+
+-- Will be null if session is invalid
+CREATE FUNCTION check_session(session_id uuid) RETURNS uuid AS $$
+  SELECT id FROM api.sessions WHERE id = session_id AND owner = current_user
+$$ LANGUAGE SQL;

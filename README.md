@@ -72,7 +72,7 @@ Test
 The test suite uses rust as a client for the PostgREST server - to run it, simply execute
 
 ```bash
-cd tests && export $(grep -v '^#' ../.env | xargs -d '\n') && cargo run
+cd tests/ && ./run-tests.sh
 ```
 
 while the docker-compose suite is running.

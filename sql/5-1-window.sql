@@ -15,9 +15,7 @@ CREATE TYPE api.time_point_or_summary AS (
 -- Select all time points and summaries relevant to the window and threshold
 -- FIXME threshold should be relative to window size, not a constant - (0,1)
 CREATE FUNCTION api.select_time_points_and_summaries(
-  left_window mpq,
-  right_window mpq,
-  threshold mpq
+  session_id uuid
 ) RETURNS SETOF api.time_point_or_summary AS $$
 DECLARE
   time_point record;
@@ -41,9 +39,7 @@ BEGIN
   FOR time_point IN
     SELECT *
     FROM api.select_time_points_with_thresholds(
-      left_window,
-      right_window,
-      threshold
+      session_id
     )
   LOOP
     IF
