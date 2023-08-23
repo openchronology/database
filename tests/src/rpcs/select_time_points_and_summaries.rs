@@ -1,17 +1,12 @@
-use crate::bounds::MonotonicBounds;
-
 use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST, REST_DATABASE_HOST_HEADER}};
 
 use num_rational::BigRational;
-use num_traits::FromPrimitive;
 use serde::{Serialize, Deserialize};
 
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 struct SelectTimePointsAndSummaries {
-    left_window: MPQ,
-    right_window: MPQ,
-    threshold: MPQ,
+    session_id: String,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -26,8 +21,8 @@ struct TimePointOrSummaryRow {
     summary_id: Option<Identifier>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-enum TimePointOrSummary {
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum TimePointOrSummary {
     TimePoint {
         id: Identifier,
         value: BigRational,
@@ -77,16 +72,10 @@ impl TimePointOrSummary {
 
 pub async fn select_time_points_and_summaries(
     client: &reqwest::Client,
-    xs: MonotonicBounds
-) -> Result<usize, String> {
+    session_id: String,
+) -> Result<Vec<TimePointOrSummary>, String> {
     let params = SelectTimePointsAndSummaries {
-        left_window: MPQ(xs.left.clone()),
-        right_window: MPQ(xs.right.clone()),
-        threshold: {
-            let t = (xs.right.clone() - xs.left.clone())
-                / BigRational::from_u8(10u8).unwrap();
-            MPQ(t)
-        },
+        session_id,
     };
     let res = client.post(format!("{}/rpc/select_time_points_and_summaries", *REST_DATABASE_HOST))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
@@ -107,20 +96,7 @@ pub async fn select_time_points_and_summaries(
                     format!("{}, original value: {:?}", e, value)
                 }))
                 .collect::<Result<Vec<TimePointOrSummary>, String>>()?;
-            if body.iter().all(|t| match t {
-                TimePointOrSummary::TimePoint {value, ..} =>
-                    value <= &xs.right && value >= &xs.left,
-                TimePointOrSummary::GeneralSummary {min, max, ..} =>
-                    (min <= &xs.right && min >= &xs.left)
-                    || (max <= &xs.right && max >= &xs.left),
-                TimePointOrSummary::Summary {min, max, ..} =>
-                    (min <= &xs.right && min >= &xs.left)
-                    || (max <= &xs.right && max >= &xs.left),
-            }) {
-                Ok(body.len())
-            } else {
-                Err("Outside of window".to_owned())
-            }
+            Ok(body)
         }
         e => Err(format!("Bad return: {:?}", e)),
     }
