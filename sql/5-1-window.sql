@@ -23,6 +23,9 @@ DECLARE
   summary_min mpq;
   summary record;
   summary_visible INTEGER[];
+  left_window mpq;
+  right_window mpq;
+  threshold mpq;
 BEGIN
   -- drops this relation after computation is complete
   CREATE TEMP TABLE result (
@@ -33,7 +36,56 @@ BEGIN
     summary_max mpq,
     summary_count INTEGER,
     summary_visible INTEGER[],
-    summary_id INTEGER
+    summary_id INTEGER,
+    CHECK (
+      (
+        (
+          -- not a timeline
+          time_point_id IS NULL
+          AND time_point_value IS NULL
+          AND time_point_timeline IS NULL
+        )
+        AND
+        (
+          -- is a summary
+          summary_min IS NOT NULL
+          AND summary_max IS NOT NULL
+          AND summary_count IS NOT NULL
+        )
+        AND
+        (
+          (
+            -- is a general summary
+            summary_visible IS NOT NULL
+            AND summary_id IS NOT NULL
+          )
+          OR
+          (
+            -- is a specific summary
+            summary_visible IS NULL
+            AND summary_id IS NULL
+          )
+        )
+      )
+      OR
+      (
+        (
+          -- is a timeline
+          time_point_id IS NOT NULL
+          AND time_point_value IS NOT NULL
+          AND time_point_timeline IS NOT NULL
+        )
+        AND
+        (
+          -- but not a summary
+          summary_min IS NULL
+          AND summary_max IS NULL
+          AND summary_count IS NULL
+          AND summary_visible IS NULL
+          AND summary_id IS NULL
+        )
+      )
+    )
   ) ON COMMIT DROP;
   -- loop over all time points in this window and their summary potential
   FOR time_point IN
@@ -86,9 +138,25 @@ BEGIN
       );
     ELSE
     -- it's in a summary
-      count_so_far := count_so_far + 1;
+      IF count_so_far IS NULL
+      THEN
+        -- this is the first one we've seen
+        count_so_far := 1;
+        summary_min := time_point.value;
+      ELSE
+        -- we've seen another before this
+        count_so_far := count_so_far + 1;
+      END IF;
     END IF;
   END LOOP;
+
+  -- gets the computed bounds and threshold
+  SELECT INTO left_window, right_window, threshold
+              api.sessions_precomputed.left_window,
+              api.sessions_precomputed.right_window,
+              api.sessions_precomputed.threshold
+  FROM api.sessions_precomputed
+  WHERE api.sessions_precomputed.id = session_id;
 
   -- include manually written / human readable summaries
   FOR summary IN

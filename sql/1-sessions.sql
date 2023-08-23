@@ -11,13 +11,14 @@ CREATE TABLE api.sessions (
 );
 GRANT SELECT, INSERT, UPDATE ON api.sessions TO guest_group;
 
-CREATE VIEW api.sessions_precomupted AS
+CREATE VIEW api.sessions_precomputed AS
   SELECT
     *,
     pos - zoom AS left_window,
     pos + zoom AS right_window,
     zoom * mpq(2) * field AS threshold
   FROM api.sessions;
+GRANT SELECT ON api.sessions_precomputed TO guest_group;
 
 ALTER TABLE api.sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY sessions_policy
@@ -30,6 +31,7 @@ CREATE FUNCTION api.insert_session_func() RETURNS TRIGGER AS $$
 BEGIN
   NEW.id := gen_random_uuid();
   NEW.owner := current_user;
+  NEW.last_interaction := NOW();
   RETURN NEW;
 END;
 $$ LANGUAGE 'plpgsql';
@@ -43,6 +45,8 @@ CREATE FUNCTION api.update_session_func() RETURNS TRIGGER AS $$
 BEGIN
   NEW.id := OLD.id;
   NEW.owner := OLD.owner;
+  NEW.last_interaction := NOW();
+  -- FIXME doesn't call touch_session()
   RETURN NEW;
 END;
 $$ LANGUAGE 'plpgsql';
@@ -55,3 +59,14 @@ CREATE TRIGGER update_session_trigger
 CREATE FUNCTION check_session(session_id uuid) RETURNS uuid AS $$
   SELECT id FROM api.sessions WHERE id = session_id AND owner = current_user
 $$ LANGUAGE SQL;
+
+-- Will be null if session is invalid
+CREATE FUNCTION touch_session(session_id_pre uuid) RETURNS uuid AS $$
+DECLARE
+  session_id uuid;
+BEGIN
+  SELECT INTO session_id check_session(session_id_pre);
+  UPDATE api.sessions SET last_interaction = NOW() WHERE id = session_id;
+  RETURN session_id;
+END;
+$$ LANGUAGE 'plpgsql';

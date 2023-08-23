@@ -2,7 +2,7 @@
 -- within the supplied threshold for the window (should they be summarized
 -- or not
 CREATE FUNCTION api.select_time_points_with_thresholds(
-    session_id uuid
+    session_id_pre uuid
   ) RETURNS TABLE (
     id INTEGER,
     value mpq,
@@ -14,13 +14,20 @@ DECLARE
   left_window mpq;
   right_window mpq;
   threshold mpq;
+  session_id uuid;
 BEGIN
+  -- verifies and updates session id
+  SELECT INTO session_id
+              touch_session(session_id_pre);
+
+  -- gets the computed bounds and threshold
   SELECT INTO left_window, right_window, threshold
-         api.sessions_precomupted.left_window,
-         api.sessions_precomupted.right_window,
-         api.sessions_precomupted.threshold
-  FROM api.sessions_precomupted
-  WHERE id = session_id;
+              api.sessions_precomputed.left_window,
+              api.sessions_precomputed.right_window,
+              api.sessions_precomputed.threshold
+  FROM api.sessions_precomputed
+  WHERE api.sessions_precomputed.id = session_id;
+
   RETURN QUERY
     -- join the `times` with `time_points` and determine whether they're in threshold
     SELECT
@@ -37,15 +44,15 @@ BEGIN
       (
         -- get points from `times` table with their neighbors
         SELECT
-          value,
-          LAG(value) OVER (ORDER BY value) prev_value,
-          LEAD(value) OVER (ORDER BY value) next_value
-          FROM api.times
-        WHERE value > left_window AND value < right_window
-        ORDER BY value
+          api.times.value,
+          LAG(api.times.value) OVER (ORDER BY api.times.value) prev_value,
+          LEAD(api.times.value) OVER (ORDER BY api.times.value) next_value
+        FROM api.times
+        WHERE api.times.value > left_window AND api.times.value < right_window
+        ORDER BY api.times.value
       ) selected_times_with_neighbors
     -- join `times` with `time_points` on the value
     INNER JOIN api.time_points
       ON api.time_points.value = selected_times_with_neighbors.value;
-END
+END;
 $$ LANGUAGE 'plpgsql';
