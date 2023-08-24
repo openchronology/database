@@ -12,17 +12,22 @@ struct InsertedSession {
 }
 
 pub async fn insert(
-    // jwt: &JWT,
+    jwt: Option<&JWT>,
     client: &reqwest::Client,
 ) -> Result<String, String> {
     let x = InsertSession {};
 
-    let res = client.post(format!("{}/sessions?select=id", *REST_DATABASE_HOST))
+    let req = client.post(format!("{}/sessions?select=id", *REST_DATABASE_HOST))
         .json(&x)
-        // .header("Authorization", jwt.to_string())
         .header("Prefer", "return=representation")
-        .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
-        .send()
+        .header("Host", (*REST_DATABASE_HOST_HEADER).clone());
+    let req = match jwt {
+        None => req,
+        Some(jwt) => req
+            .header("Authorization", jwt.to_string()),
+    };
+
+    let res = req.send()
         .await
         .map_err(|e| e.to_string())?;
 

@@ -29,11 +29,9 @@ pub async fn verify_select_time_points_and_summaries(
         let bounds = MonotonicBounds::arbitrary(g);
         let zoom = (bounds.right.clone() - bounds.left.clone()) / BigRational::from_u8(2).unwrap();
         let pos = bounds.left.clone() + zoom.clone();
-        let left = bounds.left;
-        let right = bounds.right;
-        let session = sessions::insert::insert(client).await?;
 
-        sessions::update::update(client, session.clone(), sessions::update::UpdateSession {
+        let session = sessions::insert::insert(None, client).await?;
+        sessions::update::update(None, client, session.clone(), sessions::update::UpdateSession {
             pos: Some(MPQ(pos.clone())),
             zoom: Some(MPQ(zoom.clone())),
             ..sessions::update::UpdateSession::default()
@@ -41,28 +39,28 @@ pub async fn verify_select_time_points_and_summaries(
 
         let result = select_time_points_and_summaries(
             &client,
-            // MPQ(pos.clone()),
-            // MPQ(zoom.clone()),
             session
         ).await;
         match result {
             Ok(xs) => {
                 if xs.iter().all(|t| match t {
                     TimePointOrSummary::TimePoint {value, ..} =>
-                        value <= &right && value >= &left,
+                        value <= &bounds.right && value >= &bounds.left,
                     TimePointOrSummary::GeneralSummary {min, max, ..} =>
-                        (min <= &right && min >= &left)
-                        || (max <= &right && max >= &left),
+                        (min <= &bounds.right && min >= &bounds.left)
+                        || (max <= &bounds.right && max >= &bounds.left),
                     TimePointOrSummary::Summary {min, max, ..} =>
-                        (min <= &right && min >= &left)
-                        || (max <= &right && max >= &left),
+                        (min <= &bounds.right && min >= &bounds.left)
+                        || (max <= &bounds.right && max >= &bounds.left),
                 }) {
                     times.push(now.elapsed());
                     lengths.push(xs.len());
                 } else {
                     return Err(
                         format!(
-                            "Outside of window - test case {i} - xs: {xs:?} - left: {left} - right: {right}"
+                            "Outside of window - test case {i} - xs: {xs:?} - left: {} - right: {}",
+                            bounds.left,
+                            bounds.right,
                         )
                     );
                 }
