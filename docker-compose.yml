@@ -3,7 +3,7 @@ services:
     image: pgmp-postgres
     build: ./
     expose:
-      - "5432"
+      - 5432
     restart: always
     environment:
       POSTGRES_DB: openchronology
@@ -18,8 +18,10 @@ services:
     image: postgrest/postgrest:latest
     depends_on:
       - sql
-    ports:
-      - ${PGRST_SERVER_PORT}:${PGRST_SERVER_PORT}
+    # ports:
+    #   - ${PGRST_SERVER_PORT}:${PGRST_SERVER_PORT}
+    expose:
+      - ${PGRST_SERVER_PORT}
     restart: always
     environment:
       PGRST_SERVER_PORT: ${PGRST_SERVER_PORT}
@@ -55,10 +57,10 @@ services:
     depends_on:
       - sql-rest
     restart: always
-    # expose:
-    #   - ${FILTER_PORT}
-    ports:
-      - ${FILTER_PORT}:${FILTER_PORT}
+    expose:
+      - ${FILTER_PORT}
+    # ports:
+    #   - ${FILTER_PORT}:${FILTER_PORT}
     volumes:
       - ./filter/target/debug/filter:/opt/filter
     environment:
@@ -85,5 +87,10 @@ services:
 
 networks:
   protected:
+    driver: bridge
+    # internal: true
+    attachable: false
+    external: false
   public:
     driver: bridge
+    external: false

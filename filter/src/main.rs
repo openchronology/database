@@ -51,6 +51,7 @@ async fn proxy_no_body(
     path: Path<(String,)>,
     client: Data<Client>,
 ) -> Result<HttpResponse, SendRequestError> {
+    // FIXME block whole requests to /sessions
     let (path,) = path.into_inner();
     let url = build_url(&req, path);
     info!("Built url: {url:?}");
