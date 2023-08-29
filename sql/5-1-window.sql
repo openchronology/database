@@ -123,21 +123,36 @@ BEGIN
       time_point.in_threshold_right IS NULL
     THEN
     -- it's the end of a summary
-      INSERT INTO result(
-        summary_min,
-        summary_max,
-        summary_count,
-        summary_visible,
-        summary_id
-      ) VALUES (
-        summary_min,
-        time_point.value,
-        count_so_far + 1,
-        NULL,
-        NULL
-      );
+      IF count_so_far IS NULL
+      THEN
+        -- yet this is the first one we've seen, and will be the last, therefore it's a point
+        INSERT INTO result(
+          time_point_id,
+          time_point_value,
+          time_point_timeline
+        ) VALUES (
+          time_point.id,
+          time_point.value,
+          time_point.timeline
+        );
+      ELSE
+        -- there's others so its safe to store as a summary
+        INSERT INTO result(
+          summary_min,
+          summary_max,
+          summary_count,
+          summary_visible,
+          summary_id
+        ) VALUES (
+          summary_min,
+          time_point.value,
+          count_so_far + 1,
+          NULL,
+          NULL
+        );
+      END IF;
     ELSE
-    -- it's in a summary
+      -- it's in a summary
       IF count_so_far IS NULL
       THEN
         -- this is the first one we've seen

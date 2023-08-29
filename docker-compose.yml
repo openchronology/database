@@ -4,8 +4,6 @@ services:
     build: ./
     expose:
       - "5432"
-    # ports:
-    # - 5432:5432
     restart: always
     environment:
       POSTGRES_DB: openchronology
@@ -13,15 +11,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    networks:
+      - protected
 
   sql-rest:
     image: postgrest/postgrest:latest
     depends_on:
       - sql
-    # ports:
-    #   - ${HOST_PGRST_SERVER_PORT}:${PGRST_SERVER_PORT}
-    expose:
-      - ${PGRST_SERVER_PORT}
+    ports:
+      - ${PGRST_SERVER_PORT}:${PGRST_SERVER_PORT}
     restart: always
     environment:
       PGRST_SERVER_PORT: ${PGRST_SERVER_PORT}
@@ -32,8 +30,8 @@ services:
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
       PGRST_JWT_AUD: ${PGRST_JWT_AUD}
       PGRST_JWT_ROLE_CLAIM_KEY: ".\"${PGRST_JWT_AUD}/role\""
-      VIRTUAL_PORT: ${PGRST_SERVER_PORT}
-      VIRTUAL_HOST: "database.local"
+    networks:
+      - protected
 
   sql-cron:
     image: ubuntu:22.04
@@ -49,12 +47,43 @@ services:
       PGRST_JWT_AUD: ${PGRST_JWT_AUD}
       PGRST_HOST: sql-rest
     command: /opt/cron-runner
+    networks:
+      - protected
+
+  sql-filter:
+    image: ubuntu:22.04
+    depends_on:
+      - sql-rest
+    restart: always
+    # expose:
+    #   - ${FILTER_PORT}
+    ports:
+      - ${FILTER_PORT}:${FILTER_PORT}
+    volumes:
+      - ./filter/target/debug/filter:/opt/filter
+    environment:
+      PGRST_SERVER_PORT: ${PGRST_SERVER_PORT}
+      PGRST_HOST: sql-rest
+      FILTER_PORT: ${FILTER_PORT}
+      VIRTUAL_PORT: ${FILTER_PORT}
+      VIRTUAL_HOST: "sql-filter"
+    command: /opt/filter
+    networks:
+      - protected
+      - public
 
   proxy:
     image: nginxproxy/nginx-proxy
     ports:
       - 80:80
     depends_on:
-      - sql-rest
+      - sql-filter
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - public
+
+networks:
+  protected:
+  public:
+    driver: bridge
