@@ -2,11 +2,11 @@
 
 use common::consts::{PGRST_SERVER_PORT, PGRST_HOST, FILTER_PORT};
 
-use awc::{Client, ClientRequest};
+use awc::{Client, ClientRequest, error::HeaderValue};
 use actix_web::{
     web::{self, Json, Data, Path},
     route,
-    http::{Method, header},
+    http::{Method, header::{self, ACCESS_CONTROL_ALLOW_ORIGIN}},
     middleware::Logger,
     HttpResponse,
     App, Route,
@@ -45,6 +45,10 @@ fn include_headers(req: &HttpRequest, client: ClientRequest) -> ClientRequest {
     }
 }
 
+fn add_response_headers(resp: &mut HttpResponse) {
+    resp.headers_mut().insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+}
+
 #[route("/{url:.*}", method="GET", method="DELETE")]
 async fn proxy_no_body(
     req: HttpRequest,
@@ -54,7 +58,6 @@ async fn proxy_no_body(
     // FIXME block whole requests to /sessions
     let (path,) = path.into_inner();
     let url = build_url(&req, path);
-    info!("Built url: {url:?}");
     let method = req.method();
     let c = if method == Method::GET {
         client.get(&url)
@@ -65,7 +68,9 @@ async fn proxy_no_body(
         panic!("Somehow have impossible method: {method:?}");
     };
     let c = include_headers(&req, c);
-    c.send().await?.into_wrapped_http_response()
+    let mut r = c.send().await?.into_wrapped_http_response::<SendRequestError>()?;
+    add_response_headers(&mut r);
+    Ok(r)
 }
 
 #[route("/{url:.*}", method="POST", method="PATCH")]
@@ -87,7 +92,9 @@ async fn proxy_body(
         panic!("Somehow have impossible method: {method:?}");
     };
     let c = include_headers(&req, c);
-    c.send_json(&(*payload)).await?.into_wrapped_http_response()
+    let mut r = c.send_json(&(*payload)).await?.into_wrapped_http_response::<SendRequestError>()?;
+    add_response_headers(&mut r);
+    Ok(r)
 }
 
 #[actix_web::main]

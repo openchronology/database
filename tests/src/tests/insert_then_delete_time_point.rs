@@ -12,7 +12,7 @@ use common::{MPQ, consts::TEST_USER_USER, session::gen_jwt};
 use color_print::cprintln;
 use quickcheck::{Gen, Arbitrary};
 
-const NUM_TESTS: usize = 100;
+const NUM_TESTS: usize = 1000;
 
 pub async fn verify_insert_then_delete_time_point(
     client: &reqwest::Client,

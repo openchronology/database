@@ -7,7 +7,9 @@ CREATE FUNCTION api.select_time_points_with_thresholds(
     id INTEGER,
     value mpq,
     timeline INTEGER,
+    threshold_left mpq,
     in_threshold_left BOOLEAN,
+    threshold_right mpq,
     in_threshold_right BOOLEAN
   ) AS $$
 DECLARE
@@ -35,8 +37,12 @@ BEGIN
       selected_times_with_neighbors.value,
       time_points.timeline,
       ABS(selected_times_with_neighbors.value - selected_times_with_neighbors.prev_value)
+        AS threshold_left,
+      ABS(selected_times_with_neighbors.value - selected_times_with_neighbors.prev_value)
         < threshold OR NULL
         AS in_threshold_left,
+      ABS(selected_times_with_neighbors.next_value - selected_times_with_neighbors.value)
+        AS threshold_right,
       ABS(selected_times_with_neighbors.next_value - selected_times_with_neighbors.value)
         < threshold OR NULL
         AS in_threshold_right

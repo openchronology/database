@@ -7,7 +7,7 @@ use common::{consts::TEST_USER_USER, session::gen_jwt};
 
 use color_print::cprintln;
 
-const NUM_TESTS: usize = 100;
+const NUM_TESTS: usize = 1000;
 
 pub async fn verify_insert_then_delete_timeline(
     client: &reqwest::Client,

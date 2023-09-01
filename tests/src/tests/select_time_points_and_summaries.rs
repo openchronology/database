@@ -13,7 +13,7 @@ use num_rational::BigRational;
 use num_traits::FromPrimitive;
 
 
-const NUM_TESTS: usize = 100;
+const NUM_TESTS: usize = 1000;
 
 pub async fn verify_select_time_points_and_summaries(
     client: &reqwest::Client,
