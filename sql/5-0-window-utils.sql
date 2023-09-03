@@ -36,16 +36,22 @@ BEGIN
       time_points.id,
       selected_times_with_neighbors.value,
       time_points.timeline,
+      -- NOTE threshold_left will be null if not present - in_threshold_left will be FALSE
       ABS(selected_times_with_neighbors.value - selected_times_with_neighbors.prev_value)
         AS threshold_left,
-      ABS(selected_times_with_neighbors.value - selected_times_with_neighbors.prev_value)
-        < threshold OR NULL
-        AS in_threshold_left,
+      COALESCE(
+          ABS(selected_times_with_neighbors.value - selected_times_with_neighbors.prev_value)
+            < threshold,
+          FALSE
+        ) AS in_threshold_left,
+      -- NOTE threshold_right will be null if not present - in_threshold_right will be FALSE
       ABS(selected_times_with_neighbors.next_value - selected_times_with_neighbors.value)
         AS threshold_right,
-      ABS(selected_times_with_neighbors.next_value - selected_times_with_neighbors.value)
-        < threshold OR NULL
-        AS in_threshold_right
+      COALESCE(
+          ABS(selected_times_with_neighbors.next_value - selected_times_with_neighbors.value)
+            < threshold,
+          FALSE
+        ) AS in_threshold_right
     FROM
       (
         -- get points from `times` table with their neighbors

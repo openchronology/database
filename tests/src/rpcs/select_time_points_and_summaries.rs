@@ -17,6 +17,7 @@ struct TimePointOrSummaryRow {
     summary_min: Option<MPQ>,
     summary_max: Option<MPQ>,
     summary_count: Option<Identifier>,
+    summary_next_threshold: Option<MPQ>,
     summary_visible: Option<Vec<Identifier>>,
     summary_id: Option<Identifier>,
 }
@@ -31,11 +32,13 @@ pub enum TimePointOrSummary {
         min: BigRational,
         max: BigRational,
         count: Identifier,
+        next_threshold: BigRational,
     },
     Summary {
         min: BigRational,
         max: BigRational,
         count: Identifier,
+        next_threshold: BigRational,
         visible: Vec<Identifier>,
         id: Identifier,
     },
@@ -53,18 +56,20 @@ impl TimePointOrSummary {
                 summary_min: Some(MPQ(min)),
                 summary_max: Some(MPQ(max)),
                 summary_count: Some(count),
+                summary_next_threshold: Some(MPQ(next_threshold)),
                 summary_visible: Some(visible),
                 summary_id: Some(id),
                 ..
-            } => Ok(TimePointOrSummary::Summary { min, max, count, visible, id }),
+            } => Ok(TimePointOrSummary::Summary { min, max, count, next_threshold, visible, id }),
             TimePointOrSummaryRow {
                 summary_min: Some(MPQ(min)),
                 summary_max: Some(MPQ(max)),
                 summary_count: Some(count),
+                summary_next_threshold: Some(MPQ(next_threshold)),
                 summary_visible: None,
                 summary_id: None,
                 ..
-            } => Ok(TimePointOrSummary::GeneralSummary { min, max, count }),
+            } => Ok(TimePointOrSummary::GeneralSummary { min, max, count, next_threshold }),
             _ => Err(format!("Not enough fields: {:?}", row)),
         }
     }

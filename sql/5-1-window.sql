@@ -93,10 +93,21 @@ BEGIN
     )
   ) ON COMMIT DROP;
 
+  -- Record time points for general summaries within this window - an accumulator
+  CREATE TEMPORARY TABLE not_visible_general (
+    id INTEGER NOT NULL,
+    value mpq NOT NULL,
+    timeline INTEGER NOT NULL,
+    -- the greatest threshold around this point
+    max_threshold mpq NOT NULL
+  ) ON COMMIT DROP;
+
+  -- Record _all_ time points that are going to be summarized within this window
   CREATE TEMPORARY TABLE not_visible (
     id INTEGER NOT NULL,
     value mpq NOT NULL,
     timeline INTEGER NOT NULL,
+    -- the greatest threshold around this point
     max_threshold mpq NOT NULL
   ) ON COMMIT DROP;
 
@@ -105,9 +116,7 @@ BEGIN
     api.select_time_points_with_thresholds(session_id)
   LOOP
     IF
-      time_point.in_threshold_left IS NULL
-      AND
-      time_point.in_threshold_right IS NULL
+      NOT time_point.in_threshold_left AND NOT time_point.in_threshold_right
     THEN
     -- it's a bona-fide time_point
       INSERT INTO result(
@@ -120,21 +129,12 @@ BEGIN
         time_point.timeline
       );
     ELSIF
-      time_point.in_threshold_right
-      AND
-      time_point.in_threshold_left IS NULL
+      NOT time_point.in_threshold_left AND time_point.in_threshold_right
     THEN
     -- it's the start of a summary
       count_so_far := 1;
       summary_min := time_point.value;
-      IF summary_next_threshold < time_point.threshold_left OR summary_next_threshold IS NULL
-      THEN
-        summary_next_threshold := time_point.threshold_left;
-      END IF;
-      IF summary_next_threshold < time_point.threshold_right
-      THEN
-        summary_next_threshold := time_point.threshold_right;
-      END IF;
+      -- record this one for specific summary identification
       INSERT INTO not_visible(
         id,
         value,
@@ -144,12 +144,22 @@ BEGIN
         time_point.id,
         time_point.value,
         time_point.timeline,
-        GREATEST(time_point.threshold_left, time_point.threshold_right)
+        time_point.threshold_right
+      );
+      -- record this one for accumulation as a general summary
+      INSERT INTO not_visible_general(
+        id,
+        value,
+        timeline,
+        max_threshold
+      ) VALUES (
+        time_point.id,
+        time_point.value,
+        time_point.timeline,
+        time_point.threshold_right
       );
     ELSIF
-      time_point.in_threshold_left
-      AND
-      time_point.in_threshold_right IS NULL
+      time_point.in_threshold_left AND NOT time_point.in_threshold_right
     THEN
     -- it's the end of a summary
       IF count_so_far IS NULL
@@ -165,7 +175,7 @@ BEGIN
           time_point.timeline
         );
       ELSE
-        -- there's others so its safe to store as a summary
+        -- there's others in this summary so its safe to store within the summary.
         INSERT INTO not_visible(
           id,
           value,
@@ -175,9 +185,27 @@ BEGIN
           time_point.id,
           time_point.value,
           time_point.timeline,
-          GREATEST(time_point.threshold_left, time_point.threshold_right)
+          time_point.threshold_left
         );
-        SELECT MAX(not_visible.max_threshold) INTO summary_next_threshold FROM not_visible;
+        -- also accumulate this for general summaries
+        INSERT INTO not_visible_general(
+          id,
+          value,
+          timeline,
+          max_threshold
+        ) VALUES (
+          time_point.id,
+          time_point.value,
+          time_point.timeline,
+          time_point.threshold_left
+        );
+        -- get the largest threshold within this summary - utilize the accumulator
+        SELECT MAX(not_visible_general.max_threshold)
+          INTO summary_next_threshold
+          FROM not_visible_general;
+        -- clear the entries not visible so the next summary won't conflict with this one
+        DELETE FROM not_visible_general;
+        -- store the compiled summary
         INSERT INTO result(
           summary_min,
           summary_max,
@@ -195,7 +223,7 @@ BEGIN
         );
       END IF;
     ELSE
-      -- it's in a summary
+      -- it's in a summary, we need to record this point as not being visible
       INSERT INTO not_visible(
         id,
         value,
@@ -205,35 +233,36 @@ BEGIN
         time_point.id,
         time_point.value,
         time_point.timeline,
+        -- both are guaranteed to be non-null
+        GREATEST(time_point.threshold_left, time_point.threshold_right)
+      );
+      -- also record for accumulation
+      INSERT INTO not_visible_general(
+        id,
+        value,
+        timeline,
+        max_threshold
+      ) VALUES (
+        time_point.id,
+        time_point.value,
+        time_point.timeline,
+        -- both are guaranteed to be non-null
         GREATEST(time_point.threshold_left, time_point.threshold_right)
       );
       IF count_so_far IS NULL
       THEN
-        -- this is the first one we've seen
+        -- this is actually the first one we've seen - proceed as if in_threshold_left is false
         count_so_far := 1;
         summary_min := time_point.value;
-        IF summary_next_threshold < time_point.threshold_left OR summary_next_threshold IS NULL
-        THEN
-          summary_next_threshold := time_point.threshold_left;
-        END IF;
-        IF summary_next_threshold < time_point.threshold_right
-        THEN
-          summary_next_threshold := time_point.threshold_right;
-        END IF;
       ELSE
-        -- we've seen another before this
+        -- we've seen another point before this
         count_so_far := count_so_far + 1;
-        IF summary_next_threshold < time_point.threshold_left
-        THEN
-          summary_next_threshold := time_point.threshold_left;
-        END IF;
-        IF summary_next_threshold < time_point.threshold_right
-        THEN
-          summary_next_threshold := time_point.threshold_right;
-        END IF;
       END IF;
     END IF;
   END LOOP;
+
+  -- Shouldn't use accumulator anymore.
+  DROP TABLE not_visible_general;
 
 -- FIXME use the temp table already generated?
 -- FIXME use api.select_time_points_with_thresholds to get next breakpoint?
@@ -267,26 +296,29 @@ BEGIN
         AND
         COALESCE(summaries.max_threshold >= threshold, TRUE)
   LOOP
+    -- get only the relations for this current summary
+    CREATE VIEW current_relations AS
+      SELECT * FROM api.time_point_summary_relations
+        WHERE api.time_point_summary_relations.summary = summary.id;
+    -- get the max thresholds for this summary
+    CREATE VIEW current_thresholds AS
+      SELECT not_visible.max_threshold
+        FROM current_relations
+        INNER JOIN not_visible
+        ON current_relations.time_point = not_visible.id;
     -- count the ones that aren't currently visible
-    SELECT COUNT(*)
-      INTO count_so_far
-      FROM api.time_point_summary_relations
-      RIGHT OUTER JOIN not_visible -- FIXME shouldnt this be an inner join?
-      ON api.time_point_summary_relations.time_point = not_visible.id
-      WHERE
-        api.time_point_summary_relations.summary = summary.id;
-        -- AND api.time_points.value <= right_window
-        -- AND api.time_points.value >= left_window;
-    -- only select the ones that are currently visible
+    SELECT COUNT(*) INTO count_so_far FROM current_thresholds;
+    -- now select the ones that actually _are_ currently visible
     summary_visible := ARRAY(
       SELECT result.time_point_id
       FROM result
-      INNER JOIN api.time_point_summary_relations
-      ON api.time_point_summary_relations.time_point = result.time_point_id
+      INNER JOIN current_relations
+      ON current_relations.time_point = result.time_point_id
     );
-    SELECT MAX(not_visible.max_threshold)
+    SELECT MAX(current_thresholds.max_threshold)
       INTO summary_next_threshold
-      FROM not_visible;
+      FROM current_thresholds;
+    -- store the specific summary
     INSERT INTO result(
       summary_min,
       summary_max,
@@ -302,6 +334,8 @@ BEGIN
       summary_visible,
       summary.id
     );
+    DROP VIEW current_thresholds;
+    DROP VIEW current_relations;
   END LOOP;
 
   RETURN QUERY SELECT * FROM result;
