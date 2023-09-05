@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use common::{
     Identifier,
     consts::{
@@ -18,7 +19,7 @@ pub async fn select_threshold(
     jwt: Option<&JWT>,
     client: &reqwest::Client,
     id: String,
-) -> Result<MPQ, String> {
+) -> Result<MPQ> {
     let req = client.get(format!("{}/sessions_precomputed?select=threshold&id=eq.{}", *REST_DATABASE_HOST, id))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone());
     let req = match jwt {
@@ -27,14 +28,11 @@ pub async fn select_threshold(
             .header("Authorization", jwt.to_string()),
     };
     let res = req.send()
-        .await
-        .map_err(|e| e.to_string())?;
-
+        .await?;
     let resp = res.json::<Vec<SelectedThreshold>>()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     match resp.get(0) {
-        None => Err("No timeline present".to_owned()),
+        None => bail!("No timeline present".to_owned()),
         Some(x) => Ok(x.threshold.clone()),
     }
 }

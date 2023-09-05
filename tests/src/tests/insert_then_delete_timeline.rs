@@ -3,6 +3,7 @@ use crate::tables::timelines::{
     select::select,
     delete::delete,
 };
+use anyhow::{Result, ensure, bail};
 use common::{consts::TEST_USER_USER, session::gen_jwt};
 
 use color_print::cprintln;
@@ -11,7 +12,7 @@ const NUM_TESTS: usize = 1000;
 
 pub async fn verify_insert_then_delete_timeline(
     client: &reqwest::Client,
-) -> Result<(), String> {
+) -> Result<()> {
     print!("Verify inserting a timeline then deleting it... ");
 
     let jwt = gen_jwt(TEST_USER_USER);
@@ -23,44 +24,15 @@ pub async fn verify_insert_then_delete_timeline(
             Ok(id) => {
                 match select(client, id).await {
                     Ok(timeline) => {
-                        if !(timeline.id == id && timeline.author == TEST_USER_USER) {
-                            return Err(
-                                format!(
-                                    "Test case didn't return the right timeline\nIteration: {:?}\nTimeline: {:?}\nExpected id: {}\nExpected author: {}",
-                                    i,
-                                    timeline,
-                                    id,
-                                    TEST_USER_USER,
-                                )
-                            );
-                        }
-                        match delete(&jwt, client, id).await {
-                            Ok(()) => {}
-                            Err(e) => return Err(
-                                format!(
-                                    "Test case returned an error: {:?}\nIteration: {:?}",
-                                    e,
-                                    i,
-                                )
-                            ),
+                        ensure!(timeline.id == id && timeline.author == TEST_USER_USER, "Test case didn't return the right timeline\nIteration: {i}\nTimeline: {timeline:?}\nExpected id: {id}\nExpected author: {TEST_USER_USER}");
+                        if let Err(e) = delete(&jwt, client, id).await {
+                            bail!("Test case returned an error: {e:?}\nIteration: {i}");
                         }
                     }
-                    Err(e) => return Err(
-                        format!(
-                            "Test case returned an error: {:?}\nIteration: {:?}",
-                            e,
-                            i,
-                        )
-                    ),
+                    Err(e) => bail!("Test case returned an error: {e}\nIteration: {i}"),
                 }
             }
-            Err(e) => return Err(
-                format!(
-                    "Test case returned an error: {:?}\nIteration: {:?}",
-                    e,
-                    i,
-                )
-            ),
+            Err(e) => bail!("Test case returned an error: {e:?}\nIteration: {i}"),
         }
     }
 

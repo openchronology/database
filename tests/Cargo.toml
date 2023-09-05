@@ -24,6 +24,7 @@ color-print = "0.3.4"
 hmac = "0.12.1"
 sha2 = "0.10.7"
 jwt = "0.16.0"
+anyhow = "1.0.75"
 
 [dev-dependencies]
 quickcheck_macros = "1.0.0"

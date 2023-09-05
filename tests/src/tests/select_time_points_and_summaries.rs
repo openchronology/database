@@ -6,6 +6,7 @@ use crate::{
 };
 
 use std::time::{Instant, Duration};
+use anyhow::{Result, bail, ensure};
 use common::{
     MPQ,
     consts::DEFAULT_FIELD,
@@ -27,7 +28,7 @@ const NUM_TESTS: usize = 1000;
 pub async fn verify_select_time_points_and_summaries(
     client: &reqwest::Client,
     g: &mut Gen,
-) -> Result<(), String> {
+) -> Result<()> {
     print!("Verify `select_time_points_and_summaries`... ");
 
     let mut times: Vec<Duration> = vec![];
@@ -39,15 +40,17 @@ pub async fn verify_select_time_points_and_summaries(
         let (pos, zoom) = get_pos_and_zoom(bounds.left.clone(), bounds.right.clone());
 
         let session = sessions::insert::insert(None, client).await?;
-        sessions::update::update(None, client, session.clone(), sessions::update::UpdateSession {
+        if let Err(e) = sessions::update::update(None, client, session.clone(), sessions::update::UpdateSession {
             pos: Some(MPQ(pos.clone())),
             zoom: Some(MPQ(zoom.clone())),
             ..sessions::update::UpdateSession::default()
-        }).await.map_err(|e| format!("Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}"))?;
+        }).await {
+            bail!("Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}");
+        }
 
         let expected_threshold = get_threshold(zoom.clone(), (*DEFAULT_FIELD).clone());
         let actual_threshold = select_threshold(None, client, session.clone()).await?;
-        assert_eq!(expected_threshold, actual_threshold.0);
+        ensure!(expected_threshold == actual_threshold.0, "initial thresholds aren't equal - {expected_threshold:?} != {actual_threshold:?}");
 
 
         let result = select_time_points_and_summaries(
@@ -58,7 +61,7 @@ pub async fn verify_select_time_points_and_summaries(
             Ok(xs) => {
                 for x in xs.iter() {
                     // guard test case to be within window
-                    assert!(
+                    ensure!(
                         match x {
                             TimePointOrSummary::TimePoint {value, ..} =>
                                 value <= &bounds.right && value >= &bounds.left,
@@ -81,11 +84,7 @@ pub async fn verify_select_time_points_and_summaries(
                             };
                             match adjust_zoom(current_window.clone(), next_threshold.clone()) {
                                 None => {
-                                    return Err(
-                                        format!(
-                                            "Next threshold isn't smaller than current one: {next_threshold:?} - {current_window:?} - iteration: {i}"
-                                        )
-                                    )
+                                    bail!("Next threshold isn't smaller than current one: {next_threshold:?} - {current_window:?} - iteration: {i}");
                                 }
                                 Some(new_zoom) => {
                                     let (new_pos, _) = get_pos_and_zoom(min.clone(), max.clone());
@@ -107,26 +106,25 @@ pub async fn verify_select_time_points_and_summaries(
                                         select_threshold(None, client, session.clone())
                                         .await.unwrap();
 
-                                    assert_eq!(
-                                        *next_threshold,
-                                        new_threshold.0,
+                                    ensure!(
+                                        *next_threshold == new_threshold.0,
                                         "next_threshold: {next_threshold:?} != new_threshold: {new_threshold:?}"
                                     );
 
                                     // TODO re-query and verify summary doesn't exist
 
-                                    sessions::update::update(
-                                        None,
-                                        client,
-                                        session.clone(),
-                                        sessions::update::UpdateSession {
-                                            pos: Some(MPQ(pos.clone())),
-                                            zoom: Some(MPQ(zoom.clone())),
-                                            ..sessions::update::UpdateSession::default()
-                                        }
-                                    ).await.map_err(|e| format!(
-                                        "Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}"
-                                    )).unwrap();
+                                    // sessions::update::update(
+                                    //     None,
+                                    //     client,
+                                    //     session.clone(),
+                                    //     sessions::update::UpdateSession {
+                                    //         pos: Some(MPQ(pos.clone())),
+                                    //         zoom: Some(MPQ(zoom.clone())),
+                                    //         ..sessions::update::UpdateSession::default()
+                                    //     }
+                                    // ).await.map_err(|e| format!(
+                                    //     "Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}"
+                                    // )).unwrap();
                                 }
                             }
                         }
@@ -136,11 +134,7 @@ pub async fn verify_select_time_points_and_summaries(
                 times.push(now.elapsed());
                 lengths.push(xs.len());
             }
-            Err(e) => return Err(
-                format!(
-                    "Test case returned an error: {e:?}\nSample: {pos:?} - {zoom:?}\nIteration: {i}",
-                )
-            ),
+            Err(e) => bail!("test case returned an error: {e:?}\nsample: {pos:?} - {zoom:?}\niteration: {i}"),
         }
     }
 

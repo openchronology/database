@@ -1,3 +1,4 @@
+use anyhow::{Result, ensure, bail};
 use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}, session::JWT};
 
 use serde::{Serialize, Deserialize};
@@ -18,7 +19,7 @@ pub async fn insert(
     client: &reqwest::Client,
     value: MPQ,
     timeline: Identifier
-) -> Result<Identifier, String> {
+) -> Result<Identifier> {
     let x = InsertTimePoint { value, timeline };
 
     let res = client.post(format!("{}/time_points?select=id", *REST_DATABASE_HOST))
@@ -27,18 +28,13 @@ pub async fn insert(
         .header("Prefer", "return=representation")
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
-    if res.status().as_u16() / 100 == 2 {
-        let resp = res.json::<Vec<InsertedTimePoint>>()
-            .await
-            .map_err(|e| e.to_string())?;
-        match resp.get(0) {
-            None => Err("No results after insertion".to_owned()),
-            Some(x) => Ok(x.id),
-        }
-    } else {
-        Err(format!("Bad response code: {:?}", res))
+    ensure!(res.status().as_u16() / 100 == 2, "Bad response code: {res:?}");
+    let resp = res.json::<Vec<InsertedTimePoint>>()
+        .await?;
+    match resp.get(0) {
+        None => bail!("No results after insertion".to_owned()),
+        Some(x) => Ok(x.id),
     }
 }

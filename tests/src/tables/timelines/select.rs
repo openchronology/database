@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use common::{Identifier, consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}};
 
 use serde::{Serialize, Deserialize};
@@ -8,28 +9,25 @@ pub struct Timeline {
     pub author: String,
 }
 
-pub async fn select_all(client: &reqwest::Client) -> Result<Vec<Timeline>, String> {
+pub async fn select_all(client: &reqwest::Client) -> Result<Vec<Timeline>> {
     let res = client.get(format!("{}/timelines", *REST_DATABASE_HOST))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    res.json::<Vec<Timeline>>()
-        .await
-        .map_err(|e| e.to_string())
+        .await?;
+    let xs = res.json::<Vec<Timeline>>()
+        .await?;
+    Ok(xs)
 }
 
-pub async fn select(client: &reqwest::Client, id: Identifier) -> Result<Timeline, String> {
+pub async fn select(client: &reqwest::Client, id: Identifier) -> Result<Timeline> {
     let res = client.get(format!("{}/timelines?id=eq.{}", *REST_DATABASE_HOST, id))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     let resp = res.json::<Vec<Timeline>>()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     match resp.get(0) {
-        None => Err("No timeline present".to_owned()),
+        None => bail!("No timeline present".to_owned()),
         Some(x) => Ok(x.clone()),
     }
 }

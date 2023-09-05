@@ -1,3 +1,4 @@
+use anyhow::{Result, ensure, bail};
 use common::{consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}, session::JWT};
 
 use serde::{Serialize, Deserialize};
@@ -14,7 +15,7 @@ struct InsertedSession {
 pub async fn insert(
     jwt: Option<&JWT>,
     client: &reqwest::Client,
-) -> Result<String, String> {
+) -> Result<String> {
     let x = InsertSession {};
 
     let req = client.post(format!("{}/sessions?select=id", *REST_DATABASE_HOST))
@@ -28,18 +29,13 @@ pub async fn insert(
     };
 
     let res = req.send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
-    if res.status().as_u16() / 100 == 2 {
-        let resp = res.json::<Vec<InsertedSession>>()
-            .await
-            .map_err(|e| e.to_string())?;
-        match resp.get(0) {
-            None => Err("No results after insertion".to_owned()),
-            Some(x) => Ok(x.id.clone()),
-        }
-    } else {
-        Err(format!("Bad response code: {:?}", res))
+    ensure!(res.status().as_u16() / 100 == 2, "Bad response code: {res:?}");
+    let resp = res.json::<Vec<InsertedSession>>()
+        .await?;
+    match resp.get(0) {
+        None => bail!("No results after insertion".to_owned()),
+        Some(x) => Ok(x.id.clone()),
     }
 }

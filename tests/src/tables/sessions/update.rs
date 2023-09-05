@@ -1,3 +1,4 @@
+use anyhow::{Result, ensure};
 use common::{consts::{REST_DATABASE_HOST_HEADER, REST_DATABASE_HOST}, MPQ, session::JWT};
 use serde::{Serialize, Deserialize};
 
@@ -20,7 +21,7 @@ pub async fn update(
     client: &reqwest::Client,
     id: String,
     session: UpdateSession,
-) -> Result<(), String> {
+) -> Result<()> {
 
     let req = client.patch(format!("{}/sessions?id=eq.{}", *REST_DATABASE_HOST, id))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
@@ -32,12 +33,8 @@ pub async fn update(
     };
 
     let res = req.send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
 
-    if res.status().as_u16() / 100 == 2 {
-        Ok(())
-    } else {
-        Err(format!("Bad response code: {:?}", res))
-    }
+    ensure!(res.status().as_u16() / 100 == 2, "Bad response code: {res:?}");
+    Ok(())
 }
