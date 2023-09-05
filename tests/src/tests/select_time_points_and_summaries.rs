@@ -6,7 +6,7 @@ use crate::{
 };
 
 use std::time::{Instant, Duration};
-use anyhow::{Result, bail, ensure, Context};
+use anyhow::{Result, ensure, Context, anyhow};
 use common::{
     MPQ,
     consts::DEFAULT_FIELD,
@@ -19,8 +19,6 @@ use common::{
 };
 use quickcheck::{Arbitrary, Gen};
 use color_print::cprintln;
-use num_rational::BigRational;
-use num_traits::FromPrimitive;
 
 
 const NUM_TESTS: usize = 1000;
@@ -56,76 +54,69 @@ pub async fn verify_select_time_points_and_summaries(
         );
 
 
-        let result = select_time_points_and_summaries(
+        let xs = select_time_points_and_summaries(
             &client,
             session.clone()
-        ).await;
-        match result {
-            Ok(xs) => {
-                for x in xs.iter() {
-                    // guard test case to be within window
-                    ensure!(
-                        match x {
-                            TimePointOrSummary::TimePoint {value, ..} =>
-                                value <= &bounds.right && value >= &bounds.left,
-                            TimePointOrSummary::GeneralSummary {min, max, ..}
-                            | TimePointOrSummary::Summary {min, max, ..} =>
-                                (min <= &bounds.right && min >= &bounds.left)
-                                || (max <= &bounds.right && max >= &bounds.left)
-                        },
-                        "Outside of window - test case {i} - x: {x:?} - left: {} - right: {}",
-                        bounds.left,
-                        bounds.right,
-                    );
-                    match x {
-                        TimePointOrSummary::GeneralSummary { next_threshold, min, max, .. }
-                        | TimePointOrSummary::Summary { next_threshold, min, max, .. } => {
-                            let current_window = SessionWindow {
-                                pos: pos.clone(),
-                                zoom: zoom.clone(),
-                                field: (*DEFAULT_FIELD).clone(),
-                            };
-                            match adjust_zoom(current_window.clone(), next_threshold.clone()) {
-                                None => {
-                                    bail!("Next threshold isn't smaller than current one: {next_threshold:?} - {current_window:?} - iteration: {i}");
-                                }
-                                Some(new_zoom) => {
-                                    let (new_pos, _) = get_pos_and_zoom(min.clone(), max.clone());
+        )
+            .await
+            .context("Couldn't select time points\nsample: {pos:?} - {zoom:?}\niteration: {i}")?;
 
-                                    sessions::update::update(
-                                        None,
-                                        client,
-                                        session.clone(),
-                                        sessions::update::UpdateSession {
-                                            pos: Some(MPQ(new_pos.clone())),
-                                            zoom: Some(MPQ(new_zoom.clone())),
-                                            ..sessions::update::UpdateSession::default()
-                                        }
-                                    ).await.context("Couldn't update session - pos: {pos:?}\nzoom: {zoom:?}")?;
+        for x in xs.iter() {
+            // guard test case to be within window
+            ensure!(
+                match x {
+                    TimePointOrSummary::TimePoint {value, ..} =>
+                        value <= &bounds.right && value >= &bounds.left,
+                    TimePointOrSummary::GeneralSummary {min, max, ..}
+                    | TimePointOrSummary::Summary {min, max, ..} =>
+                        (min <= &bounds.right && min >= &bounds.left)
+                        || (max <= &bounds.right && max >= &bounds.left)
+                },
+                "Outside of window - test case {i} - x: {x:?} - left: {} - right: {}",
+                bounds.left,
+                bounds.right,
+            );
+            match x {
+                TimePointOrSummary::GeneralSummary { next_threshold, min, max, .. }
+                | TimePointOrSummary::Summary { next_threshold, min, max, .. } => {
+                    let current_window = SessionWindow {
+                        pos: pos.clone(),
+                        zoom: zoom.clone(),
+                        field: (*DEFAULT_FIELD).clone(),
+                    };
+                    let new_zoom = adjust_zoom(current_window.clone(), next_threshold.clone())
+                        .ok_or(anyhow!("Next threshold isn't smaller than current one: {next_threshold:?} - {current_window:?} - iteration: {i}"))?;
+                    let (new_pos, _) = get_pos_and_zoom(min.clone(), max.clone());
 
-                                    let new_threshold =
-                                        select_threshold(None, client, session.clone())
-                                        .await
-                                        .context("Couldn't get new threshold after updating")?;
-
-                                    ensure!(
-                                        *next_threshold == new_threshold.0,
-                                        "next_threshold: {next_threshold:?} != new_threshold: {new_threshold:?}"
-                                    );
-
-                                    // TODO re-query and verify summary doesn't exist
-                                }
-                            }
+                    sessions::update::update(
+                        None,
+                        client,
+                        session.clone(),
+                        sessions::update::UpdateSession {
+                            pos: Some(MPQ(new_pos.clone())),
+                            zoom: Some(MPQ(new_zoom.clone())),
+                            ..sessions::update::UpdateSession::default()
                         }
-                        _ => {}
-                    }
+                    ).await.context("Couldn't update session - pos: {pos:?}\nzoom: {zoom:?}")?;
+
+                    let new_threshold =
+                        select_threshold(None, client, session.clone())
+                        .await
+                        .context("Couldn't get new threshold after updating")?;
+
+                    ensure!(
+                        *next_threshold == new_threshold.0,
+                        "next_threshold: {next_threshold:?} != new_threshold: {new_threshold:?}"
+                    );
+
+                    // TODO re-query and verify summary doesn't exist
                 }
-                // FIXME make an actual benchmark suite
-                times.push(now.elapsed());
-                lengths.push(xs.len());
+                _ => {}
             }
-            Err(e) => bail!("test case returned an error: {e:?}\nsample: {pos:?} - {zoom:?}\niteration: {i}"),
         }
+        // FIXME make an actual benchmark suite
+        times.push(now.elapsed());
+        lengths.push(xs.len());
     }
 
     let times_stats = Stats::new(&times, Duration::as_secs_f64)

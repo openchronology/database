@@ -1,3 +1,4 @@
+use anyhow::{Result, ensure, Context, bail};
 use common::{MPQ, Identifier, consts::{REST_DATABASE_HOST, REST_DATABASE_HOST_HEADER}};
 
 use num_rational::BigRational;
@@ -45,7 +46,7 @@ pub enum TimePointOrSummary {
 }
 
 impl TimePointOrSummary {
-    fn from_row(row: TimePointOrSummaryRow) -> Result<Self, String> {
+    fn from_row(row: TimePointOrSummaryRow) -> Result<Self> {
         match row {
             TimePointOrSummaryRow {
                 time_point_id: Some(id),
@@ -70,7 +71,7 @@ impl TimePointOrSummary {
                 summary_id: None,
                 ..
             } => Ok(TimePointOrSummary::GeneralSummary { min, max, count, next_threshold }),
-            _ => Err(format!("Not enough fields: {:?}", row)),
+            _ => bail!("Not enough fields: {row:?}"),
         }
     }
 }
@@ -78,31 +79,25 @@ impl TimePointOrSummary {
 pub async fn select_time_points_and_summaries(
     client: &reqwest::Client,
     session_id: String,
-) -> Result<Vec<TimePointOrSummary>, String> {
+) -> Result<Vec<TimePointOrSummary>> {
     let params = SelectTimePointsAndSummaries {
         session_id,
     };
-    let res = client.post(format!("{}/rpc/select_time_points_and_summaries", *REST_DATABASE_HOST))
+    let resp = client.post(format!("{}/rpc/select_time_points_and_summaries", *REST_DATABASE_HOST))
         .header("Host", (*REST_DATABASE_HOST_HEADER).clone())
         .json(&params)
         .send()
-        .await;
-    match res {
-        reqwest::Result::Ok(resp) if resp.status().as_u16() / 100 == 2 => {
-            let value: serde_json::Value = resp
-                .json()
-                .await
-                .map_err(|e| format!("Json decoding to value error: {:?}", e))?;
-            let body: Vec<TimePointOrSummaryRow> = serde_json::from_value(value.clone())
-                .map_err(|e| format!("Json decoding from value error: {:?} - value: {:?}", e, value))?;
-            let body: Vec<TimePointOrSummary> = body
-                .into_iter()
-                .map(|x| TimePointOrSummary::from_row(x).map_err(|e| {
-                    format!("{}, original value: {:?}", e, value)
-                }))
-                .collect::<Result<Vec<TimePointOrSummary>, String>>()?;
-            Ok(body)
-        }
-        e => Err(format!("Bad return: {:?}", e)),
-    }
+        .await?;
+    ensure!(resp.status().as_u16() / 100 == 2, "Not a 2xx response code");
+    let value: serde_json::Value = resp
+        .json()
+        .await?;
+    let body: Vec<TimePointOrSummaryRow> =
+        serde_json::from_value(value.clone())
+        .context("Json decoding error - value: {value:?}")?;
+    let body: Vec<TimePointOrSummary> = body
+        .into_iter()
+        .map(|x| TimePointOrSummary::from_row(x).context("original value: {value:?}"))
+        .collect::<Result<Vec<TimePointOrSummary>>>()?;
+    Ok(body)
 }
