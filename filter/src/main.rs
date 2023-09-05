@@ -1,16 +1,18 @@
 #[macro_use] extern crate log;
 
+use std::collections::HashMap;
+
 use common::consts::{PGRST_SERVER_PORT, PGRST_HOST, FILTER_PORT};
 
 use awc::{Client, ClientRequest, error::HeaderValue};
 use actix_web::{
-    web::{self, Json, Data, Path},
+    web::{self, Json, Data, Path, Query},
     route,
     http::{Method, header::{self, ACCESS_CONTROL_ALLOW_ORIGIN}},
     middleware::Logger,
     HttpResponse,
     App, Route,
-    HttpServer, HttpRequest, FromRequest,
+    HttpServer, HttpRequest, FromRequest, ResponseError, error::ErrorUnauthorized,
 };
 use actix_proxy::{IntoHttpResponse, SendRequestError};
 
@@ -57,6 +59,13 @@ async fn proxy_no_body(
 ) -> Result<HttpResponse, SendRequestError> {
     // FIXME block whole requests to /sessions
     let (path,) = path.into_inner();
+    let q = Query::<HashMap<String, String>>::from_query(req.query_string()).unwrap();
+    if path == "sessions"
+        && q.get("id")
+        .and_then(|s| s.split_once('.').map(|(qualifier, _)| qualifier == "eq"))
+        != Some(true) {
+        return Ok(ErrorUnauthorized("Cannot select all sessions").error_response())
+    }
     let url = build_url(&req, path);
     let method = req.method();
     let c = if method == Method::GET {
@@ -68,7 +77,7 @@ async fn proxy_no_body(
         panic!("Somehow have impossible method: {method:?}");
     };
     let c = include_headers(&req, c);
-    let mut r = c.send().await?.into_wrapped_http_response::<SendRequestError>()?;
+    let mut r = c.send().await?.into_http_response();
     add_response_headers(&mut r);
     Ok(r)
 }
@@ -92,7 +101,7 @@ async fn proxy_body(
         panic!("Somehow have impossible method: {method:?}");
     };
     let c = include_headers(&req, c);
-    let mut r = c.send_json(&(*payload)).await?.into_wrapped_http_response::<SendRequestError>()?;
+    let mut r = c.send_json(&(*payload)).await?.into_http_response();
     add_response_headers(&mut r);
     Ok(r)
 }

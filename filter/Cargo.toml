@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 actix-proxy = "0.2.0"
 actix-web = "4.3.1"
+anyhow = "1.0.75"
 awc = "3.1.1"
 # common = { git = "https://github.com/openchronology/rust-common.git", rev = "a3b4a40b" }
 common = { path = "../../common" }
