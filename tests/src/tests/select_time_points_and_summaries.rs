@@ -6,7 +6,7 @@ use crate::{
 };
 
 use std::time::{Instant, Duration};
-use anyhow::{Result, bail, ensure};
+use anyhow::{Result, bail, ensure, Context};
 use common::{
     MPQ,
     consts::DEFAULT_FIELD,
@@ -40,17 +40,20 @@ pub async fn verify_select_time_points_and_summaries(
         let (pos, zoom) = get_pos_and_zoom(bounds.left.clone(), bounds.right.clone());
 
         let session = sessions::insert::insert(None, client).await?;
-        if let Err(e) = sessions::update::update(None, client, session.clone(), sessions::update::UpdateSession {
+        sessions::update::update(None, client, session.clone(), sessions::update::UpdateSession {
             pos: Some(MPQ(pos.clone())),
             zoom: Some(MPQ(zoom.clone())),
             ..sessions::update::UpdateSession::default()
-        }).await {
-            bail!("Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}");
-        }
+        }).await.context("Couldn't update session - pos: {pos:?}\nzoom: {zoom:?}")?;
 
         let expected_threshold = get_threshold(zoom.clone(), (*DEFAULT_FIELD).clone());
-        let actual_threshold = select_threshold(None, client, session.clone()).await?;
-        ensure!(expected_threshold == actual_threshold.0, "initial thresholds aren't equal - {expected_threshold:?} != {actual_threshold:?}");
+        let actual_threshold = select_threshold(None, client, session.clone())
+            .await
+            .context("Couldn't get actual threshold after updating session")?;
+        ensure!(
+            expected_threshold == actual_threshold.0,
+            "initial thresholds aren't equal - {expected_threshold:?} != {actual_threshold:?}"
+        );
 
 
         let result = select_time_points_and_summaries(
@@ -98,13 +101,12 @@ pub async fn verify_select_time_points_and_summaries(
                                             zoom: Some(MPQ(new_zoom.clone())),
                                             ..sessions::update::UpdateSession::default()
                                         }
-                                    ).await.map_err(|e| format!(
-                                        "Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}"
-                                    )).unwrap();
+                                    ).await.context("Couldn't update session - pos: {pos:?}\nzoom: {zoom:?}")?;
 
                                     let new_threshold =
                                         select_threshold(None, client, session.clone())
-                                        .await.unwrap();
+                                        .await
+                                        .context("Couldn't get new threshold after updating")?;
 
                                     ensure!(
                                         *next_threshold == new_threshold.0,
@@ -112,25 +114,13 @@ pub async fn verify_select_time_points_and_summaries(
                                     );
 
                                     // TODO re-query and verify summary doesn't exist
-
-                                    // sessions::update::update(
-                                    //     None,
-                                    //     client,
-                                    //     session.clone(),
-                                    //     sessions::update::UpdateSession {
-                                    //         pos: Some(MPQ(pos.clone())),
-                                    //         zoom: Some(MPQ(zoom.clone())),
-                                    //         ..sessions::update::UpdateSession::default()
-                                    //     }
-                                    // ).await.map_err(|e| format!(
-                                    //     "Couldn't update session - {e:?}\npos: {pos:?}\nzoom: {zoom:?}"
-                                    // )).unwrap();
                                 }
                             }
                         }
                         _ => {}
                     }
                 }
+                // FIXME make an actual benchmark suite
                 times.push(now.elapsed());
                 lengths.push(xs.len());
             }

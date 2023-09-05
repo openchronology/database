@@ -3,7 +3,7 @@ use crate::tables::timelines::{
     select::select,
     delete::delete,
 };
-use anyhow::{Result, ensure, bail};
+use anyhow::{Result, ensure, Context};
 use common::{consts::TEST_USER_USER, session::gen_jwt};
 
 use color_print::cprintln;
@@ -20,20 +20,19 @@ pub async fn verify_insert_then_delete_timeline(
     for i in 0..NUM_TESTS {
         // println!("Using JWT: {:?}", jwt);
 
-        match insert(&jwt, client).await {
-            Ok(id) => {
-                match select(client, id).await {
-                    Ok(timeline) => {
-                        ensure!(timeline.id == id && timeline.author == TEST_USER_USER, "Test case didn't return the right timeline\nIteration: {i}\nTimeline: {timeline:?}\nExpected id: {id}\nExpected author: {TEST_USER_USER}");
-                        if let Err(e) = delete(&jwt, client, id).await {
-                            bail!("Test case returned an error: {e:?}\nIteration: {i}");
-                        }
-                    }
-                    Err(e) => bail!("Test case returned an error: {e}\nIteration: {i}"),
-                }
-            }
-            Err(e) => bail!("Test case returned an error: {e:?}\nIteration: {i}"),
-        }
+        let id = insert(&jwt, client)
+            .await
+            .context("Couldn't insert timeline\nIteration: {i}")?;
+        let timeline = select(client, id)
+            .await
+            .context("Couldn't select timeline\nIteration: {i}")?;
+        ensure!(
+            timeline.id == id && timeline.author == TEST_USER_USER,
+            "Test case didn't return the right timeline\nIteration: {i}\nTimeline: {timeline:?}\nExpected id: {id}\nExpected author: {TEST_USER_USER}"
+        );
+        delete(&jwt, client, id)
+            .await
+            .context("Couldn't delete timeline\nIteration: {i}")?;
     }
 
     cprintln!("<green>Success</green>");

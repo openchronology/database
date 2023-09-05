@@ -7,7 +7,7 @@ use crate::tables::{
     timelines,
 };
 
-use anyhow::{ensure, Result, bail};
+use anyhow::{ensure, Result, Context};
 use common::{MPQ, consts::TEST_USER_USER, session::gen_jwt};
 
 use color_print::cprintln;
@@ -23,26 +23,30 @@ pub async fn verify_insert_then_delete_time_point(
 
     let jwt = gen_jwt(TEST_USER_USER);
 
-    let timeline = timelines::insert::insert(&jwt, client).await?;
+    let timeline = timelines::insert::insert(&jwt, client)
+        .await
+        .context("Couldn't insert timeline")?;
 
     for i in 0..NUM_TESTS {
         // println!("Using JWT: {:?}", jwt);
         let value = MPQ::arbitrary(g);
 
-        match insert(&jwt, client, value, timeline).await {
-            Ok(id) => {
-                match select(client, id).await {
-                    Ok(time_point) => {
-                        ensure!(time_point.id == id, "Test case didn't return the right time_point\nIteration: {i}\nTime_Point: {time_point:?}\nExpected id: {id}\nExpected author: {TEST_USER_USER}");
-                        if let Err(e) = delete(&jwt, client, id).await {
-                            bail!("Test case returned an error: {e:?}\nIteration: {i}");
-                        }
-                    }
-                    Err(e) => bail!("Test case returned an error: {e:?}\nIteration: {i}"),
-                }
-            }
-            Err(e) => bail!("Test case returned an error: {e:?}\nIteration: {i}"),
-        }
+        let id = insert(&jwt, client, value, timeline)
+            .await
+            .context("Couldn't insert time point\nIteration: {i}")?;
+
+        let time_point = select(client, id)
+            .await
+            .context("Couldn't select time point\nIteration: {i}")?;
+
+        ensure!(
+            time_point.id == id,
+            "Test case didn't return the right time_point\nIteration: {i}\nTime_Point: {time_point:?}\nExpected id: {id}\nExpected author: {TEST_USER_USER}"
+        );
+
+        delete(&jwt, client, id)
+            .await
+            .context("Couldn't delete time point\nIteration: {i}")?;
     }
 
     cprintln!("<green>Success</green>");
