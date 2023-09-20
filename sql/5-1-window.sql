@@ -307,6 +307,7 @@ BEGIN
         INNER JOIN not_visible
         ON current_relations.time_point = not_visible.id;
     -- count the ones that aren't currently visible
+    -- FIXME approximate count?
     SELECT COUNT(*) INTO count_so_far FROM current_thresholds;
     -- now select the ones that actually _are_ currently visible
     summary_visible := ARRAY(

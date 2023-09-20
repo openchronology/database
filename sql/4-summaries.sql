@@ -49,9 +49,10 @@ GRANT USAGE, SELECT ON SEQUENCE api.summaries_id_seq TO guest_group;
 
 -- Many-to-many relation of time points to summaries
 CREATE TABLE api.time_point_summary_relations (
-  id serial PRIMARY KEY,
   time_point INTEGER NOT NULL,
   summary INTEGER NOT NULL,
+  -- composite primary key to avoid duplicate entries
+  PRIMARY KEY (time_point, summary),
   CONSTRAINT fk_time_point
     FOREIGN KEY(time_point)
     REFERENCES api.time_points(id)
@@ -63,4 +64,3 @@ CREATE TABLE api.time_point_summary_relations (
 );
 
 GRANT ALL ON api.time_point_summary_relations TO guest_group;
-GRANT USAGE, SELECT ON SEQUENCE api.time_point_summary_relations_id_seq TO guest_group;
